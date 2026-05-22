@@ -1,3 +1,26 @@
+
+window.updateEditModeUI = function() {
+    const body = document.body;
+    const modeLabel = document.getElementById('mode-label');
+    const tbRasgos = document.getElementById('toolbar-rasgos');
+    const tbEstados = document.getElementById('toolbar-estados');
+    const tbAtributos = document.getElementById('toolbar-atributos');
+
+    if (document.body.dataset.editMode === 'true') {
+        body.classList.add('edit-mode');
+        if(modeLabel) modeLabel.textContent = "Modo Edición";
+        if(tbRasgos) tbRasgos.style.display = 'block';
+        if(tbEstados) tbEstados.style.display = 'block';
+        if(tbAtributos) tbAtributos.style.display = 'block';
+    } else {
+        body.classList.remove('edit-mode');
+        if(modeLabel) modeLabel.textContent = "Modo Juego";
+        if(tbRasgos) tbRasgos.style.display = 'none';
+        if(tbEstados) tbEstados.style.display = 'none';
+        if(tbAtributos) tbAtributos.style.display = 'none';
+    }
+};
+
 // Estructura de Datos Global
 let appState = {
     players: [],
@@ -12,6 +35,8 @@ function createNewPlayer(name, currencyName) {
         name: name || 'Jugador 1',
         currencyName: currencyName || 'Mérito',
         currencyAmount: 0,
+        hp: 100,
+        maxHp: 100,
         attributes: {
             str: 10, // Fuerza
             dex: 10, // Destreza
@@ -39,10 +64,288 @@ const attrNames = {
 let editingItem = null;
 
 // ==========================================
+
+// ==========================================
+// CATÁLOGO GLOBAL DE ESTADOS
+// ==========================================
+
+
+
+
+
+var btnManageGlobalStates = document.getElementById('btn-manage-global-states');
+if(btnManageGlobalStates) {
+    btnManageGlobalStates.onclick = () => {
+        if(typeof renderGlobalStatesList === 'function') renderGlobalStatesList();
+        openModal('modal-global-states');
+    };
+}
+
+function renderGlobalStatesList() {
+    const list = document.getElementById('global-states-list');
+    if(!list) return;
+    list.innerHTML = '';
+    if(!appState.globalStates || appState.globalStates.length === 0) {
+        list.innerHTML = '<p class="text-muted">No hay estados base definidos.</p>';
+        return;
+    }
+    appState.globalStates.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'global-state-item';
+        div.innerHTML = `
+            <div><strong>${s.nombreBase}</strong></div>
+            <div>
+                <button class="btn btn-small btn-danger" onclick="deleteGlobalState('${s.id}')">X</button>
+            </div>
+        `;
+        list.appendChild(div);
+    });
+}
+
+var btnNewGlobalState = document.getElementById('btn-new-global-state');
+if(btnNewGlobalState) {
+    btnNewGlobalState.onclick = () => {
+        editingItem = null;
+        document.getElementById('modal-state-title').textContent = "Nuevo Estado Base";
+        document.getElementById('input-state-name').value = '';
+        document.getElementById('input-state-desc').value = '';
+        closeModal('modal-global-states');
+        openModal('modal-state');
+    };
+}
+
+
+// ==========================================
+// ASIGNAR ESTADO AL JUGADOR
+// ==========================================
+
+
+
+
+
+    // ==========================================
+    // EVENTOS DE ESTADOS
+    // ==========================================
+    var btnManageGlobalStates = document.getElementById('btn-manage-global-states');
+    if(btnManageGlobalStates) {
+        btnManageGlobalStates.onclick = () => {
+            if(typeof renderGlobalStatesList === 'function') renderGlobalStatesList();
+            openModal('modal-global-states');
+        };
+    }
+
+    var btnNewGlobalState = document.getElementById('btn-new-global-state');
+    if(btnNewGlobalState) {
+        btnNewGlobalState.onclick = () => {
+            editingItem = null;
+            document.getElementById('modal-state-title').textContent = "Nuevo Estado Base";
+            document.getElementById('input-state-name').value = '';
+            document.getElementById('input-state-desc').value = '';
+            closeModal('modal-global-states');
+            openModal('modal-state');
+        };
+    }
+
 // INICIALIZACIÓN Y GUARDADO
 // ==========================================
+
+// ==========================================
+// PAN & ZOOM (Cámara Libre)
+// ==========================================
+let treeTransform = { x: 0, y: 0, scale: 1 };
+let isDragging = false;
+let startDragX = 0;
+let startDragY = 0;
+
+function initPanZoom() {
+    const viewport = document.getElementById('tree-viewport');
+    const container = document.getElementById('tree-container');
+    if(!viewport || !container) return;
+
+    // Mouse Drag
+    viewport.addEventListener('mousedown', (e) => {
+        if(e.button !== 0) return; // Solo click izquierdo
+        if(e.target.closest('.node')) return; // No arrastrar si clickeas un nodo
+        isDragging = true;
+        startDragX = e.clientX - treeTransform.x;
+        startDragY = e.clientY - treeTransform.y;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if(!isDragging) return;
+        treeTransform.x = e.clientX - startDragX;
+        treeTransform.y = e.clientY - startDragY;
+        updateTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+
+
+    // Touch Drag (Mobile)
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+
+    viewport.addEventListener('touchstart', (e) => {
+        if(e.touches.length === 1) {
+            if(e.target.closest('.node')) return;
+            isDragging = true;
+            lastTouchX = e.touches[0].clientX;
+            lastTouchY = e.touches[0].clientY;
+        }
+    });
+
+    viewport.addEventListener('touchmove', (e) => {
+        if(!isDragging || e.touches.length !== 1) return;
+        e.preventDefault(); // Prevenir scroll nativo
+        const deltaX = e.touches[0].clientX - lastTouchX;
+        const deltaY = e.touches[0].clientY - lastTouchY;
+        treeTransform.x += deltaX;
+        treeTransform.y += deltaY;
+        lastTouchX = e.touches[0].clientX;
+        lastTouchY = e.touches[0].clientY;
+        updateTransform();
+    }, {passive: false});
+
+    viewport.addEventListener('touchend', () => {
+        isDragging = false;
+    });
+
+    // Mouse Wheel Zoom
+    viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const zoomIntensity = 0.1;
+        const wheel = e.deltaY < 0 ? 1 : -1;
+
+        const zoom = Math.exp(wheel * zoomIntensity);
+        const newScale = treeTransform.scale * zoom;
+        if(newScale < 0.2 || newScale > 3) return;
+
+        treeTransform.scale = newScale;
+        updateTransform();
+    }, {passive: false});
+}
+
+function updateTransform() {
+    const container = document.getElementById('tree-container');
+    if(container) {
+        container.style.transform = `translate(${treeTransform.x}px, ${treeTransform.y}px) scale(${treeTransform.scale})`;
+    }
+}
+
+
+function initGlobalEvents() {
+    // EVENTOS DE MENU MÓVIL
+    const btnOpen = document.getElementById('btn-open-sidebar');
+    const btnClose = document.getElementById('btn-close-sidebar');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    function openSidebar() {
+        if(sidebar) sidebar.classList.add('open');
+        if(overlay) overlay.classList.add('active');
+    }
+
+    function closeSidebar() {
+        if(sidebar) sidebar.classList.remove('open');
+        if(overlay) overlay.classList.remove('active');
+    }
+
+    if (btnOpen) btnOpen.addEventListener('click', openSidebar);
+    if (btnClose) btnClose.addEventListener('click', closeSidebar);
+    if (overlay) overlay.addEventListener('click', closeSidebar);
+
+    const originalSelectPlayer = window.selectPlayer;
+    window.selectPlayer = function(id) {
+        if(originalSelectPlayer) originalSelectPlayer(id);
+        if (window.innerWidth <= 768) closeSidebar();
+    };
+
+    // EVENTOS DEL CATALOGO GLOBAL
+    const btnManageGlobalStates = document.getElementById('btn-manage-global-states');
+    if(btnManageGlobalStates) {
+        btnManageGlobalStates.onclick = () => {
+            if(typeof renderGlobalStatesList === 'function') renderGlobalStatesList();
+            openModal('modal-global-states');
+        };
+    }
+
+    const btnNewGlobalState = document.getElementById('btn-new-global-state');
+    if(btnNewGlobalState) {
+        btnNewGlobalState.onclick = () => {
+            editingItem = null;
+            document.getElementById('modal-state-title').textContent = "Nuevo Estado Base";
+            document.getElementById('input-state-name').value = '';
+            document.getElementById('input-state-desc').value = '';
+            closeModal('modal-global-states');
+            openModal('modal-state');
+        };
+    }
+
+    const btnAssignState = document.getElementById('btn-add-state-to-player');
+    if(btnAssignState) {
+        btnAssignState.onclick = () => {
+            const select = document.getElementById('select-assign-state');
+            if(!select) return;
+            select.innerHTML = '';
+            const player = getCurrentPlayer();
+
+            if(!appState.globalStates) appState.globalStates = [];
+            const available = appState.globalStates;
+
+            if(available.length === 0) {
+                select.innerHTML = '<option value="">No hay estados globales creados.</option>';
+                document.getElementById('btn-confirm-assign-state').disabled = true;
+            } else {
+                document.getElementById('btn-confirm-assign-state').disabled = false;
+                available.forEach(gs => {
+                    const opt = document.createElement('option');
+                    opt.value = gs.id;
+                    opt.textContent = gs.nombreBase;
+                    select.appendChild(opt);
+                });
+            }
+            openModal('modal-assign-state');
+        };
+    }
+
+    const btnConfirmAssign = document.getElementById('btn-confirm-assign-state');
+    if(btnConfirmAssign) {
+        btnConfirmAssign.onclick = () => {
+            const player = getCurrentPlayer();
+            const globalId = document.getElementById('select-assign-state').value;
+            const bodyPart = document.getElementById('select-assign-bodypart') ? document.getElementById('select-assign-bodypart').value : 'general';
+
+            if(player && globalId) {
+                if(!player.activeStates) player.activeStates = [];
+                player.activeStates.push({
+                    id: 'astate_' + Date.now(),
+                    globalId: globalId,
+                    nivel: 0,
+                    bodyPart: bodyPart,
+                    desbloqueado: true
+                });
+                saveAppState();
+                renderStates();
+                closeModal('modal-assign-state');
+            }
+        };
+    }
+}
+
+window.deleteGlobalState = function(id) {
+    if(confirm("¿Eliminar este estado del catálogo global? Los jugadores que lo tengan asignado perderán la referencia.")){
+        appState.globalStates = appState.globalStates.filter(s => s.id !== id);
+        saveAppState();
+        renderGlobalStatesList();
+        renderStates();
+    }
+};
+
 function init() {
     document.body.dataset.editMode = "false";
+    initGlobalEvents();
     loadAppState();
 
     // Auto-crear un jugador inicial si la lista está completamente vacía
@@ -73,6 +376,8 @@ function loadAppState() {
             appState = JSON.parse(saved);
             // Asegurar que jugadores viejos tengan objeto de atributos
             appState.players.forEach(p => {
+                if (p.hp === undefined) p.hp = 100;
+                if (p.maxHp === undefined) p.maxHp = 100;
                 if (!p.attributes) {
                     p.attributes = { str:10, dex:10, con:10, int:10, wis:10, cha:10 };
                 }
@@ -126,7 +431,7 @@ function renderSidebar() {
     });
 }
 
-function selectPlayer(id) {
+window.selectPlayer = function(id) {
     appState.currentPlayerId = id;
     saveAppState();
     renderSidebar();
@@ -142,6 +447,7 @@ function selectPlayer(id) {
         document.getElementById('currency-name').textContent = player.currencyName;
 
         updateCurrencyDisplay();
+        renderHp();
         renderAttributes();
         recalculateUnlockedStates(player);
         renderTree();
@@ -184,6 +490,37 @@ function deletePlayer(id) {
 }
 
 // ==========================================
+
+// ==========================================
+// PUNTOS DE GOLPE (HP)
+// ==========================================
+function renderHp() {
+    const player = getCurrentPlayer();
+    if (!player) return;
+
+    document.getElementById('current-hp').textContent = player.hp;
+    document.getElementById('max-hp').textContent = player.maxHp;
+
+    // Cambiar color si está bajo
+    const hpDisplay = document.getElementById('current-hp');
+    const ratio = player.hp / player.maxHp;
+    if (ratio <= 0) hpDisplay.style.color = 'var(--danger-color)';
+    else if (ratio <= 0.3) hpDisplay.style.color = 'orange';
+    else hpDisplay.style.color = 'var(--success-color)';
+}
+
+window.changeHp = function(amount) {
+    const player = getCurrentPlayer();
+    if(!player) return;
+
+    player.hp += amount;
+    if (player.hp > player.maxHp) player.hp = player.maxHp;
+    // Permito que baje de 0 para control narrativo del GM (inconsciente, etc)
+
+    saveAppState();
+    renderHp();
+};
+
 // RENDER: ATRIBUTOS (D&D)
 // ==========================================
 function renderAttributes() {
@@ -257,256 +594,6 @@ function recalculateUnlockedStates(player) {
 
         trait.desbloqueado = parentsMet && attrMet;
     });
-
-    // Para Estados (Solo Requisitos D&D)
-    if(player.activeStates) {
-        player.activeStates.forEach(activeState => {
-            const globalState = appState.globalStates.find(s => s.id === activeState.globalId);
-            if(!globalState) return;
-
-            let attrMet = true;
-            activeState.reqAttrFailMsg = null;
-            if (globalState.reqAttr && globalState.reqAttr.key && globalState.reqAttr.val) {
-                const currentVal = player.attributes[globalState.reqAttr.key] || 0;
-                if (currentVal < globalState.reqAttr.val) {
-                    attrMet = false;
-                    activeState.reqAttrFailMsg = `Requiere ${attrNames[globalState.reqAttr.key]} ${globalState.reqAttr.val}`;
-                }
-            }
-            activeState.desbloqueado = attrMet;
-        });
-    }
-}
-
-function getLevelSuffix(nivel) {
-    if (nivel === 1) return "+";
-    if (nivel === 2) return "++";
-    return "";
-}
-
-function getCurrentCost(item) {
-    if (item.nivel >= 2) return "MÁXIMO";
-    const costArray = item.costeMerito || [0,0];
-    const cost = costArray[item.nivel] || 0;
-    const player = getCurrentPlayer();
-    return cost + " " + (player ? player.currencyName : "");
-}
-
-// ==========================================
-// RENDER: RASGOS (ÁRBOL)
-// ==========================================
-function renderTree() {
-    const player = getCurrentPlayer();
-    if (!player) return;
-
-    const container = document.getElementById('nodes-container');
-    container.innerHTML = '';
-
-    const tiers = {};
-    player.traits.forEach(trait => {
-        const t = trait.tier || 1;
-        if (!tiers[t]) tiers[t] = [];
-        tiers[t].push(trait);
-    });
-
-    const sortedTiers = Object.keys(tiers).sort((a, b) => parseInt(a) - parseInt(b));
-
-    sortedTiers.forEach(tierKey => {
-        const tierDiv = document.createElement('div');
-        tierDiv.className = 'tier';
-
-        tiers[tierKey].forEach(trait => {
-            const node = document.createElement('div');
-            node.className = 'node';
-            node.id = `node-${trait.id}`;
-
-            if (trait.nivel === 2) node.classList.add('maxed');
-            else if (trait.desbloqueado) node.classList.add('unlocked');
-            else node.classList.add('locked');
-
-            const name = trait.nombreBase + getLevelSuffix(trait.nivel);
-            const costText = getCurrentCost(trait);
-            const descHtml = trait.descripcion ? `<div class="state-desc" style="display:none">${trait.descripcion}</div>` : '';
-
-            // Mostrar por qué está bloqueado si es por atributos
-            let warningHtml = '';
-            if (!trait.desbloqueado && trait.reqAttrFailMsg && trait.nivel === 0) {
-                warningHtml = `<div class="req-warning">${trait.reqAttrFailMsg}</div>`;
-            }
-
-            const badge = `<div class="edit-badge">✎</div>`;
-
-            node.innerHTML = `
-                ${badge}
-                <div class="node-name">${name}</div>
-                <div class="node-cost">${costText}</div>
-                ${warningHtml}
-                ${descHtml}
-            `;
-
-            node.addEventListener('click', () => {
-                if (document.body.dataset.editMode === 'true') openModalTrait(trait);
-                else handleUpgrade(trait, 'trait', `node-${trait.id}`);
-            });
-
-            tierDiv.appendChild(node);
-        });
-
-        container.appendChild(tierDiv);
-    });
-}
-
-// ==========================================
-// RENDER: ESTADOS (GRID)
-// ==========================================
-function renderStates() {
-    const player = getCurrentPlayer();
-    if (!player) return;
-
-    const container = document.getElementById('states-container');
-    container.innerHTML = '';
-
-    if (!player.activeStates || player.activeStates.length === 0) {
-        container.innerHTML = '<p style="color:#aaa; grid-column: 1/-1;">No hay estados asignados a este jugador.</p>';
-        return;
-    }
-
-    player.activeStates.forEach(activeState => {
-        // Encontrar el estado global correspondiente
-        const globalState = appState.globalStates.find(s => s.id === activeState.globalId);
-        if(!globalState) return; // Si se borró del global, lo ignoramos
-
-        const card = document.createElement('div');
-        card.className = 'state-card';
-        card.id = `state-${activeState.id}`;
-
-        // El nivel y el estado desbloqueado pertenecen a la instancia activa del jugador
-        if (activeState.nivel === 2) card.classList.add('maxed');
-        else if (activeState.desbloqueado) card.classList.add('unlocked');
-        else card.classList.add('locked');
-
-        const name = globalState.nombreBase + getLevelSuffix(activeState.nivel);
-        const costArray = globalState.costeMerito || [0,0];
-        const cost = activeState.nivel >= 2 ? "MÁXIMO" : costArray[activeState.nivel] + " " + player.currencyName;
-        const descText = globalState.descripcion || '';
-
-        let warningHtml = '';
-        if (!activeState.desbloqueado && activeState.reqAttrFailMsg && activeState.nivel === 0) {
-            warningHtml = `<div class="req-warning">${activeState.reqAttrFailMsg}</div>`;
-        }
-
-        const badge = `<div class="edit-badge">×</div>`; // En el jugador, el badge sirve para remover la asignación
-
-        card.innerHTML = `
-            ${badge}
-            <div class="state-name">${name}</div>
-            <div class="state-cost">${cost}</div>
-            ${warningHtml}
-            ${descText ? `<div class="state-desc">${descText}</div>` : ''}
-        `;
-
-        card.addEventListener('click', (e) => {
-            if (document.body.dataset.editMode === 'true') {
-                // En modo edición, clickear un estado de jugador lo REMUEVE (porque la edición se hace en el catálogo)
-                if(confirm(`¿Remover '${globalState.nombreBase}' de este jugador?`)){
-                    player.activeStates = player.activeStates.filter(s => s.id !== activeState.id);
-                    saveAppState();
-                    renderStates();
-                }
-            } else {
-                handleUpgradeState(activeState, globalState, `state-${activeState.id}`);
-            }
-        });
-
-        container.appendChild(card);
-    });
-}
-// ==========================================
-// LÓGICA DE JUEGO (COMPRAS)
-// ==========================================
-function handleUpgrade(item, type, elementId) {
-    const player = getCurrentPlayer();
-    if (!player) return;
-
-    if (!item.desbloqueado || item.nivel >= 2) {
-        shakeElement(elementId); return;
-    }
-
-    const costArray = item.costeMerito || [0,0];
-    const cost = costArray[item.nivel] || 0;
-
-    if (player.currencyAmount >= cost) {
-        player.currencyAmount -= cost;
-        item.nivel++;
-
-        if (type === 'trait') {
-            recalculateUnlockedStates(player);
-            renderTree();
-            if (document.getElementById('tab-rasgos').classList.contains('active')) setTimeout(drawLines, 50);
-        }
-
-        saveAppState();
-        updateCurrencyDisplay();
-    } else {
-        shakeElement(elementId);
-    }
-}
-
-function shakeElement(id) {
-    const el = document.getElementById(id);
-    if (el) {
-        el.style.transform = "translateX(-5px)";
-        setTimeout(() => el.style.transform = "translateX(5px)", 100);
-        setTimeout(() => el.style.transform = "translateX(0)", 200);
-    }
-}
-
-// ==========================================
-// SVG LINES
-// ==========================================
-function drawLines() {
-    const svg = document.getElementById('connections-svg');
-    if (!svg) return;
-    svg.innerHTML = '';
-
-    if (!document.getElementById('tab-rasgos').classList.contains('active')) return;
-
-    const player = getCurrentPlayer();
-    if (!player) return;
-
-    player.traits.forEach(trait => {
-        if (trait.requisitos && trait.requisitos.length > 0) {
-            const targetNode = document.getElementById(`node-${trait.id}`);
-            if (!targetNode) return;
-
-            trait.requisitos.forEach(reqId => {
-                const sourceNode = document.getElementById(`node-${reqId}`);
-                if (!sourceNode) return;
-
-                const sourceRect = sourceNode.getBoundingClientRect();
-                const targetRect = targetNode.getBoundingClientRect();
-                const svgRect = svg.getBoundingClientRect();
-
-                const startX = sourceRect.left + sourceRect.width / 2 - svgRect.left;
-                const startY = sourceRect.bottom - svgRect.top;
-                const endX = targetRect.left + targetRect.width / 2 - svgRect.left;
-                const endY = targetRect.top - svgRect.top;
-
-                const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
-                const pathData = `M ${startX} ${startY} C ${startX} ${startY + 40}, ${endX} ${endY - 40}, ${endX} ${endY}`;
-                line.setAttribute("d", pathData);
-
-                const reqTrait = player.traits.find(t => t.id === reqId);
-                const isReqMet = reqTrait && reqTrait.nivel > 0;
-                // La línea se pinta activa si el padre se cumplió, sin importar el requisito de atributo.
-                const isActive = isReqMet && (trait.nivel > 0 || trait.desbloqueado);
-
-                line.setAttribute("class", `connection-line ${isActive ? 'active' : 'inactive'}`);
-                line.setAttribute("fill", "none");
-                svg.appendChild(line);
-            });
-        }
-    });
 }
 
 // ==========================================
@@ -519,27 +606,15 @@ function drawLines() {
 
 
 
-function updateEditModeUI() {
-    const body = document.body;
-    const modeLabel = document.getElementById('mode-label');
-    const tbRasgos = document.getElementById('toolbar-rasgos');
-    const tbEstados = document.getElementById('toolbar-estados');
-    const tbAtributos = document.getElementById('toolbar-atributos');
 
-    if (body.dataset.editMode === 'true') {
-        body.classList.add('edit-mode');
-        if(modeLabel) modeLabel.textContent = "Modo Edición";
-        if(tbRasgos) tbRasgos.style.display = 'block';
-        if(tbEstados) tbEstados.style.display = 'block';
-        if(tbAtributos) tbAtributos.style.display = 'block';
-    } else {
-        body.classList.remove('edit-mode');
-        if(modeLabel) modeLabel.textContent = "Modo Juego";
-        if(tbRasgos) tbRasgos.style.display = 'none';
-        if(tbEstados) tbEstados.style.display = 'none';
-        if(tbAtributos) tbAtributos.style.display = 'none';
-    }
-}
+
+
+
+
+
+
+
+
 
 
 
@@ -711,10 +786,7 @@ const btnAddStateOld = document.getElementById('btn-add-state'); if(btnAddStateO
     document.getElementById('modal-state-title').textContent = "Nuevo Estado";
     document.getElementById('input-state-name').value = '';
     document.getElementById('input-state-desc').value = '';
-    document.getElementById('input-state-cost1').value = '10';
-    document.getElementById('input-state-cost2').value = '20';
-    document.getElementById('select-state-req-attr').value = '';
-    document.getElementById('input-state-req-attr-val').value = '10';
+
     document.getElementById('btn-delete-state').style.display = 'none';
     openModal('modal-state');
 };
@@ -725,426 +797,317 @@ function openModalState(estado) {
     document.getElementById('input-state-name').value = estado.nombreBase;
     document.getElementById('input-state-desc').value = estado.descripcion || '';
 
-    const costs = estado.costeMerito || [10,20];
-    document.getElementById('input-state-cost1').value = costs[0];
-    document.getElementById('input-state-cost2').value = costs[1];
 
-    if (estado.reqAttr) {
-        document.getElementById('select-state-req-attr').value = estado.reqAttr.key || '';
-        document.getElementById('input-state-req-attr-val').value = estado.reqAttr.val || 10;
-    } else {
-        document.getElementById('select-state-req-attr').value = '';
-        document.getElementById('input-state-req-attr-val').value = 10;
-    }
 
     document.getElementById('btn-delete-state').style.display = 'block';
     openModal('modal-state');
 }
 
-document.getElementById('btn-save-state').onclick = () => {
-    const player = getCurrentPlayer();
-    if (!player) return;
-
-    const name = document.getElementById('input-state-name').value.trim() || 'Nuevo Estado';
-    const desc = document.getElementById('input-state-desc').value.trim();
-    const c1 = parseInt(document.getElementById('input-state-cost1').value) || 0;
-    const c2 = parseInt(document.getElementById('input-state-cost2').value) || 0;
-
-    const reqAttrKey = document.getElementById('select-state-req-attr').value;
-    const reqAttrVal = parseInt(document.getElementById('input-state-req-attr-val').value) || 1;
-    const reqAttrObj = reqAttrKey ? { key: reqAttrKey, val: reqAttrVal } : null;
-
-    if (editingItem) {
-        editingItem.nombreBase = name;
-        editingItem.descripcion = desc;
-        editingItem.costeMerito = [c1, c2];
-        editingItem.reqAttr = reqAttrObj;
-    } else {
-        const newState = {
-            id: 'state_' + Date.now(),
-            nombreBase: name,
-            descripcion: desc,
-            nivel: 0,
-            costeMerito: [c1, c2],
-            reqAttr: reqAttrObj
-        };
-        if(!player.estados) player.estados = [];
-        player.estados.push(newState);
-    }
-
-    recalculateUnlockedStates(player);
-    saveAppState();
-    renderStates();
-    closeModal('modal-state');
-};
-
-document.getElementById('btn-delete-state').onclick = () => {
-    const player = getCurrentPlayer();
-    if (!player || !editingItem) return;
-    if (confirm("¿Eliminar estado?")) {
-        player.estados = player.estados.filter(s => s.id !== editingItem.id);
-        saveAppState();
-        renderStates();
-        closeModal('modal-state');
-    }
-};
-
-// ==========================================
-// EVENT LISTENERS GENERALES
-// ==========================================
-
-
-
-
-
-
-
-
-
-
-
-
-
-function setupEventListeners() {
-    document.getElementById('btn-add-currency').addEventListener('click', () => {
-        const player = getCurrentPlayer();
-        if (player) {
-            player.currencyAmount += 10;
-            saveAppState();
-            updateCurrencyDisplay();
-        }
-    });
-
-    const toggleInput = document.getElementById('mode-toggle');
-    if(toggleInput) {
-        // En móviles, el click en el toggle a veces se traga el evento de onchange o addEventListener
-        // usar onChange en el objeto DOM directamente es más seguro en JS puro sin frameworks.
-        toggleInput.onchange = function(e) {
-            document.body.dataset.editMode = e.target.checked ? 'true' : 'false';
-            updateEditModeUI();
-        };
-    }
-
-    const tabBtns = document.querySelectorAll('.tab-btn');
-('.tab-btn');
-('.tab-btn');
-('.tab-btn');
-    const tabContents = document.querySelectorAll('.tab-content');
-
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            tabBtns.forEach(b => b.classList.remove('active'));
-            tabContents.forEach(c => c.classList.remove('active'));
-
-            btn.classList.add('active');
-            const targetId = btn.getAttribute('data-target');
-            document.getElementById(targetId).classList.add('active');
-
-
-            if (targetId === 'tab-rasgos') {
-                setTimeout(drawLines, 50);
-            }
-            updateEditModeUI();
-        });
-    });
-
-
-    window.addEventListener('resize', () => {
-        if (document.getElementById('tab-rasgos') && document.getElementById('tab-rasgos').classList.contains('active')) {
-            drawLines();
-        }
-    });
-}
-;
-
-// Override the old btn-save-state logic
-document.getElementById('btn-save-state').onclick = () => {
-    const name = document.getElementById('input-state-name').value.trim() || 'Nuevo Estado';
-    const desc = document.getElementById('input-state-desc').value.trim();
-    const c1 = parseInt(document.getElementById('input-state-cost1').value) || 0;
-    const c2 = parseInt(document.getElementById('input-state-cost2').value) || 0;
-
-    const reqAttrKey = document.getElementById('select-state-req-attr').value;
-    const reqAttrVal = parseInt(document.getElementById('input-state-req-attr-val').value) || 1;
-    const reqAttrObj = reqAttrKey ? { key: reqAttrKey, val: reqAttrVal } : null;
-
-    if (editingItem) {
-        editingItem.nombreBase = name;
-        editingItem.descripcion = desc;
-        editingItem.costeMerito = [c1, c2];
-        editingItem.reqAttr = reqAttrObj;
-    } else {
-        const newState = {
-            id: 'gstate_' + Date.now(),
-            nombreBase: name,
-            descripcion: desc,
-            costeMerito: [c1, c2],
-            reqAttr: reqAttrObj
-        };
-        appState.globalStates.push(newState);
-    }
-
-    saveAppState();
-
-    // Si estábamos editando/creando, volver a la lista de estados globales
-    closeModal('modal-state');
-    renderGlobalStatesList();
-    openModal('modal-global-states');
-
-    // Refrescar si afectó a la UI actual
-    const player = getCurrentPlayer();
-    if(player) {
-        recalculateUnlockedStates(player);
-        renderStates();
-    }
-};
 
 // ==========================================
 // ASIGNAR ESTADO AL JUGADOR
 // ==========================================
-var btnAssignState = document.getElementById('btn-add-state-to-player');
-if(btnAssignState) {
-    btnAssignState.onclick = () => {
-        const select = document.getElementById('select-assign-state');
-        select.innerHTML = '';
 
-        const player = getCurrentPlayer();
 
-        // Mostrar solo los estados que el jugador NO tenga asignados
-        const available = appState.globalStates.filter(gs => {
-            return !player.activeStates.some(ast => ast.globalId === gs.id);
+
+
+document.addEventListener('DOMContentLoaded', init);
+
+
+// ==========================================
+// RENDER: RASGOS (ÁRBOL)
+// ==========================================
+
+function getLevelSuffix(nivel) {
+    if (nivel === 1) return "+";
+    if (nivel === 2) return "++";
+    return "";
+}
+
+function getCurrentCost(item) {
+    if (item.nivel >= 2) return "MÁXIMO";
+    const costArray = item.costeMerito || [0,0];
+    const cost = costArray[item.nivel] || 0;
+    const player = getCurrentPlayer();
+    return cost + " " + (player ? player.currencyName : "");
+}
+
+function handleUpgrade(item, type, elementId) {
+    const player = getCurrentPlayer();
+    if (!player) return;
+
+    if (!item.desbloqueado || item.nivel >= 2) {
+        shakeElement(elementId); return;
+    }
+
+    const costArray = item.costeMerito || [0,0];
+    const cost = costArray[item.nivel] || 0;
+
+    if (player.currencyAmount >= cost) {
+        player.currencyAmount -= cost;
+        item.nivel++;
+
+        if (type === 'trait') {
+            recalculateUnlockedStates(player);
+            renderTree();
+            if (document.getElementById('tab-rasgos').classList.contains('active')) setTimeout(drawLines, 50);
+        } else {
+            renderStates();
+        }
+
+        saveAppState();
+        updateCurrencyDisplay();
+    } else {
+        shakeElement(elementId);
+    }
+}
+
+function shakeElement(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.style.transform = "translateX(-5px)";
+        setTimeout(() => el.style.transform = "translateX(5px)", 100);
+        setTimeout(() => el.style.transform = "translateX(0)", 200);
+    }
+}
+
+function renderTree() {
+    const player = getCurrentPlayer();
+    if (!player) return;
+
+    const container = document.getElementById('nodes-container');
+    if(!container) return;
+    container.innerHTML = '';
+
+    const tiers = {};
+    if(!player.traits) player.traits = [];
+    player.traits.forEach(trait => {
+        const t = trait.tier || 1;
+        if (!tiers[t]) tiers[t] = [];
+        tiers[t].push(trait);
+    });
+
+    const sortedTiers = Object.keys(tiers).sort((a, b) => parseInt(a) - parseInt(b));
+
+    sortedTiers.forEach(tierKey => {
+        const tierDiv = document.createElement('div');
+        tierDiv.className = 'tier';
+
+        tiers[tierKey].forEach(trait => {
+            const node = document.createElement('div');
+            node.className = 'node';
+            node.id = `node-${trait.id}`;
+
+            if (trait.nivel === 2) node.classList.add('maxed');
+            else if (trait.desbloqueado) node.classList.add('unlocked');
+            else node.classList.add('locked');
+
+            const name = trait.nombreBase + getLevelSuffix(trait.nivel);
+            const costText = getCurrentCost(trait);
+
+            let warningHtml = '';
+            if (!trait.desbloqueado && trait.reqAttrFailMsg && trait.nivel === 0) {
+                warningHtml = `<div class="req-warning">${trait.reqAttrFailMsg}</div>`;
+            }
+
+            const badge = `<div class="edit-badge">✎</div>`;
+
+            node.innerHTML = `
+                ${badge}
+                <div class="node-name">${name}</div>
+                <div class="node-cost">${costText}</div>
+                ${warningHtml}
+            `;
+
+            node.addEventListener('click', () => {
+                if (document.body.dataset.editMode === 'true') openModalTrait(trait);
+                else handleUpgrade(trait, 'trait', `node-${trait.id}`);
+            });
+
+            tierDiv.appendChild(node);
         });
 
-        if(available.length === 0) {
-            select.innerHTML = '<option value="">No hay estados disponibles para asignar.</option>';
-            document.getElementById('btn-confirm-assign-state').disabled = true;
-        } else {
-            document.getElementById('btn-confirm-assign-state').disabled = false;
-            available.forEach(gs => {
-                const opt = document.createElement('option');
-                opt.value = gs.id;
-                opt.textContent = gs.nombreBase;
-                select.appendChild(opt);
-            });
-        }
-
-        openModal('modal-assign-state');
-    };
-}
-
-var btnConfirmAssign = document.getElementById('btn-confirm-assign-state');
-if(btnConfirmAssign) {
-    btnConfirmAssign.onclick = () => {
-        const player = getCurrentPlayer();
-        const globalId = document.getElementById('select-assign-state').value;
-        if(player && globalId) {
-            player.activeStates.push({
-                id: 'astate_' + Date.now(),
-                globalId: globalId,
-                nivel: 0,
-                desbloqueado: true
-            });
-            recalculateUnlockedStates(player);
-            saveAppState();
-            renderStates();
-            closeModal('modal-assign-state');
-        }
-    };
+        container.appendChild(tierDiv);
+    });
 }
 
 
 // ==========================================
-// PAN & ZOOM (Cámara Libre)
+// RENDER: ESTADOS (ZONAS DEL CUERPO)
 // ==========================================
-let treeTransform = { x: 0, y: 0, scale: 1 };
-let isDragging = false;
-let startDragX = 0;
-let startDragY = 0;
 
-function initPanZoom() {
-    const viewport = document.getElementById('tree-viewport');
-    const container = document.getElementById('tree-container');
-    if(!viewport || !container) return;
-
-    // Mouse Drag
-    viewport.addEventListener('mousedown', (e) => {
-        if(e.button !== 0) return; // Solo click izquierdo
-        if(e.target.closest('.node')) return; // No arrastrar si clickeas un nodo
-        isDragging = true;
-        startDragX = e.clientX - treeTransform.x;
-        startDragY = e.clientY - treeTransform.y;
-    });
-
-    window.addEventListener('mousemove', (e) => {
-        if(!isDragging) return;
-        treeTransform.x = e.clientX - startDragX;
-        treeTransform.y = e.clientY - startDragY;
-        updateTransform();
-    });
-
-    window.addEventListener('mouseup', () => {
-        isDragging = false;
-    });
-
-    // Touch Drag (Mobile)
-    let lastTouchX = 0;
-    let lastTouchY = 0;
-
-    viewport.addEventListener('touchstart', (e) => {
-        if(e.touches.length === 1) {
-            if(e.target.closest('.node')) return;
-            isDragging = true;
-            lastTouchX = e.touches[0].clientX;
-            lastTouchY = e.touches[0].clientY;
-        }
-    });
-
-    viewport.addEventListener('touchmove', (e) => {
-        if(!isDragging || e.touches.length !== 1) return;
-        e.preventDefault(); // Prevenir scroll nativo
-        const deltaX = e.touches[0].clientX - lastTouchX;
-        const deltaY = e.touches[0].clientY - lastTouchY;
-        treeTransform.x += deltaX;
-        treeTransform.y += deltaY;
-        lastTouchX = e.touches[0].clientX;
-        lastTouchY = e.touches[0].clientY;
-        updateTransform();
-    }, {passive: false});
-
-    viewport.addEventListener('touchend', () => {
-        isDragging = false;
-    });
-
-    // Mouse Wheel Zoom
-    viewport.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        const zoomIntensity = 0.1;
-        const wheel = e.deltaY < 0 ? 1 : -1;
-
-        const rect = viewport.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left - (rect.width/2);
-        const mouseY = e.clientY - rect.top - (rect.height/2);
-
-        const zoom = Math.exp(wheel * zoomIntensity);
-        const newScale = treeTransform.scale * zoom;
-        if(newScale < 0.2 || newScale > 3) return;
-
-        treeTransform.x -= mouseX / treeTransform.scale * (newScale - treeTransform.scale);
-        treeTransform.y -= mouseY / treeTransform.scale * (newScale - treeTransform.scale);
-        treeTransform.scale = newScale;
-
-        updateTransform();
-    }, {passive: false});
-}
-
-function updateTransform() {
-    const container = document.getElementById('tree-container');
-    if(container) {
-        container.style.transform = `translate(${treeTransform.x}px, ${treeTransform.y}px) scale(${treeTransform.scale})`;
-    }
-}
-
-
-// ==========================================
-// CATÁLOGO GLOBAL DE ESTADOS
-// ==========================================
-document.getElementById('btn-manage-global-states').onclick = () => {
-    renderGlobalStatesList();
-    openModal('modal-global-states');
-};
-
-function renderGlobalStatesList() {
-    const list = document.getElementById('global-states-list');
-    if(!list) return;
-    list.innerHTML = '';
-    if(!appState.globalStates || appState.globalStates.length === 0) {
-        list.innerHTML = '<p class="text-muted">No hay estados base definidos.</p>';
-        return;
-    }
-    appState.globalStates.forEach(s => {
-        const div = document.createElement('div');
-        div.className = 'global-state-item';
-        div.innerHTML = `
-            <div><strong>${s.nombreBase}</strong></div>
-            <div>
-                <button class="btn btn-small" onclick="editGlobalState('${s.id}')">Editar</button>
-                <button class="btn btn-small btn-danger" onclick="deleteGlobalState('${s.id}')">X</button>
-            </div>
-        `;
-        list.appendChild(div);
-    });
-}
-
-document.getElementById('btn-new-global-state').onclick = () => {
-    editingItem = null;
-    document.getElementById('modal-state-title').textContent = "Nuevo Estado Base";
-    document.getElementById('input-state-name').value = '';
-    document.getElementById('input-state-desc').value = '';
-    document.getElementById('input-state-cost1').value = '10';
-    document.getElementById('input-state-cost2').value = '20';
-    document.getElementById('select-state-req-attr').value = '';
-    document.getElementById('input-state-req-attr-val').value = '10';
-    closeModal('modal-global-states');
-    openModal('modal-state');
-};
-
-window.editGlobalState = function(id) {
-    const estado = appState.globalStates.find(s => s.id === id);
-    if(!estado) return;
-    editingItem = estado;
-    document.getElementById('modal-state-title').textContent = "Editar Estado Base";
-    document.getElementById('input-state-name').value = estado.nombreBase;
-    document.getElementById('input-state-desc').value = estado.descripcion || '';
-
-    const costs = estado.costeMerito || [10,20];
-    document.getElementById('input-state-cost1').value = costs[0];
-    document.getElementById('input-state-cost2').value = costs[1];
-
-    if (estado.reqAttr) {
-        document.getElementById('select-state-req-attr').value = estado.reqAttr.key || '';
-        document.getElementById('input-state-req-attr-val').value = estado.reqAttr.val || 10;
-    } else {
-        document.getElementById('select-state-req-attr').value = '';
-        document.getElementById('input-state-req-attr-val').value = 10;
-    }
-
-    closeModal('modal-global-states');
-    openModal('modal-state');
-};
-
-window.deleteGlobalState = function(id) {
-    if(confirm("¿Eliminar este estado del catálogo global? Los jugadores que lo tengan asignado perderán la referencia.")){
-        appState.globalStates = appState.globalStates.filter(s => s.id !== id);
+window.scaleState = function(activeStateId, delta) {
+    const player = getCurrentPlayer();
+    if(!player || !player.activeStates) return;
+    const aState = player.activeStates.find(s => s.id === activeStateId);
+    if(aState) {
+        aState.nivel += delta;
+        if(aState.nivel < 0) aState.nivel = 0; // Min 0
+        if(aState.nivel > 2) aState.nivel = 2; // Max 2 (++, siguiendo regla)
         saveAppState();
-        renderGlobalStatesList();
         renderStates();
     }
 };
 
-var btnSaveState = document.getElementById('btn-save-state');
+function renderStates() {
+    const player = getCurrentPlayer();
+    if (!player) return;
+
+    const container = document.getElementById('body-zones-container');
+    if(!container) return;
+    container.innerHTML = '';
+
+    const zones = {
+        general: 'General',
+        cabeza: 'Cabeza',
+        torso: 'Torso',
+        brazo_izq: 'Brazo Izquierdo',
+        brazo_der: 'Brazo Derecho',
+        pierna_izq: 'Pierna Izquierda',
+        pierna_der: 'Pierna Derecha'
+    };
+
+    const statesByZone = {};
+    Object.keys(zones).forEach(z => statesByZone[z] = []);
+
+    if (player.activeStates) {
+        player.activeStates.forEach(ast => {
+            const z = ast.bodyPart || 'general';
+            if(!statesByZone[z]) statesByZone[z] = [];
+            statesByZone[z].push(ast);
+        });
+    }
+
+    Object.keys(zones).forEach(zoneKey => {
+        const zoneStates = statesByZone[zoneKey];
+        if(zoneStates.length === 0 && zoneKey !== 'general') return;
+
+        const zoneDiv = document.createElement('div');
+        zoneDiv.className = 'body-zone';
+        zoneDiv.innerHTML = `<h4>${zones[zoneKey]}</h4>`;
+
+        if (zoneStates.length === 0) {
+            zoneDiv.innerHTML += '<p class="text-muted" style="font-size:0.8rem;">Limpio</p>';
+        } else {
+            const statesGrid = document.createElement('div');
+            statesGrid.className = 'states-grid';
+
+            zoneStates.forEach(activeState => {
+                if(!appState.globalStates) return;
+                const globalState = appState.globalStates.find(s => s.id === activeState.globalId);
+                if(!globalState) return;
+
+                const card = document.createElement('div');
+                card.className = 'state-card unlocked';
+                card.id = `state-${activeState.id}`;
+
+                const name = globalState.nombreBase + getLevelSuffix(activeState.nivel);
+                const descText = globalState.descripcion || '';
+                const badge = `<div class="edit-badge" title="Remover de jugador">×</div>`;
+
+                const scaleControls = document.body.dataset.editMode === 'true' ? `
+                    <div class="state-scale-controls">
+                        <button class="btn btn-small" onclick="event.stopPropagation(); scaleState('${activeState.id}', -1)">- Lvl</button>
+                        <button class="btn btn-small" onclick="event.stopPropagation(); scaleState('${activeState.id}', 1)">+ Lvl</button>
+                    </div>
+                ` : '';
+
+                card.innerHTML = `
+                    ${badge}
+                    <div class="state-name">${name}</div>
+                    ${descText ? `<div class="state-desc">${descText}</div>` : ''}
+                    ${scaleControls}
+                `;
+
+                card.addEventListener('click', (e) => {
+                    if (document.body.dataset.editMode === 'true') {
+                        if(confirm(`¿Sanar/Remover '${globalState.nombreBase}' de esta zona?`)){
+                            player.activeStates = player.activeStates.filter(s => s.id !== activeState.id);
+                            saveAppState();
+                            renderStates();
+                        }
+                    }
+                });
+
+                statesGrid.appendChild(card);
+            });
+            zoneDiv.appendChild(statesGrid);
+        }
+
+        container.appendChild(zoneDiv);
+    });
+}
+
+
+// ==========================================
+// SVG LINES
+// ==========================================
+function drawLines() {
+    const svg = document.getElementById('connections-svg');
+    if (!svg) return;
+    svg.innerHTML = '';
+
+    if (!document.getElementById('tab-rasgos') || !document.getElementById('tab-rasgos').classList.contains('active')) return;
+
+    const player = getCurrentPlayer();
+    if (!player) return;
+
+    if(!player.traits) player.traits = [];
+
+    player.traits.forEach(trait => {
+        if (trait.requisitos && trait.requisitos.length > 0) {
+            const targetNode = document.getElementById(`node-${trait.id}`);
+            if (!targetNode) return;
+
+            trait.requisitos.forEach(reqId => {
+                const sourceNode = document.getElementById(`node-${reqId}`);
+                if (!sourceNode) return;
+
+                const sourceRect = sourceNode.getBoundingClientRect();
+                const targetRect = targetNode.getBoundingClientRect();
+                const svgRect = svg.getBoundingClientRect();
+
+                // Compensar el scale del viewport para que las lineas queden ancladas exactamente en los nodos sin importar el zoom
+                const scale = typeof treeTransform !== 'undefined' ? treeTransform.scale : 1;
+                const startX = (sourceRect.left + sourceRect.width / 2 - svgRect.left) / scale;
+                const startY = (sourceRect.bottom - svgRect.top) / scale;
+                const endX = (targetRect.left + targetRect.width / 2 - svgRect.left) / scale;
+                const endY = (targetRect.top - svgRect.top) / scale;
+
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                const pathData = `M ${startX} ${startY} C ${startX} ${startY + 40}, ${endX} ${endY - 40}, ${endX} ${endY}`;
+                line.setAttribute("d", pathData);
+
+                const reqTrait = player.traits.find(t => t.id === reqId);
+                const isReqMet = reqTrait && reqTrait.nivel > 0;
+                const isActive = isReqMet && (trait.nivel > 0 || trait.desbloqueado);
+
+                line.setAttribute("class", `connection-line ${isActive ? 'active' : 'inactive'}`);
+                line.setAttribute("fill", "none");
+                svg.appendChild(line);
+            });
+        }
+    });
+}
+
+
+const btnSaveState = document.getElementById('btn-save-state');
 if(btnSaveState) {
     btnSaveState.onclick = () => {
         const name = document.getElementById('input-state-name').value.trim() || 'Nuevo Estado';
         const desc = document.getElementById('input-state-desc').value.trim();
-        const c1 = parseInt(document.getElementById('input-state-cost1').value) || 0;
-        const c2 = parseInt(document.getElementById('input-state-cost2').value) || 0;
-
-        const reqAttrKey = document.getElementById('select-state-req-attr').value;
-        const reqAttrVal = parseInt(document.getElementById('input-state-req-attr-val').value) || 1;
-        const reqAttrObj = reqAttrKey ? { key: reqAttrKey, val: reqAttrVal } : null;
 
         if (editingItem) {
             editingItem.nombreBase = name;
             editingItem.descripcion = desc;
-            editingItem.costeMerito = [c1, c2];
-            editingItem.reqAttr = reqAttrObj;
+            // Eliminar data vieja si viene heredada
+            delete editingItem.costeMerito;
+            delete editingItem.reqAttr;
         } else {
             const newState = {
                 id: 'gstate_' + Date.now(),
                 nombreBase: name,
-                descripcion: desc,
-                costeMerito: [c1, c2],
-                reqAttr: reqAttrObj
+                descripcion: desc
             };
             if(!appState.globalStates) appState.globalStates = [];
             appState.globalStates.push(newState);
@@ -1152,68 +1115,69 @@ if(btnSaveState) {
 
         saveAppState();
         closeModal('modal-state');
-        renderGlobalStatesList();
+        if(typeof renderGlobalStatesList === 'function') renderGlobalStatesList();
         openModal('modal-global-states');
 
         const player = getCurrentPlayer();
-        if(player) {
-            recalculateUnlockedStates(player);
+        if(player && typeof renderStates === 'function') {
             renderStates();
         }
     };
 }
 
-// ==========================================
-// ASIGNAR ESTADO AL JUGADOR
-// ==========================================
-var btnAssignState = document.getElementById('btn-add-state-to-player');
-if(btnAssignState) {
-    btnAssignState.onclick = () => {
-        const select = document.getElementById('select-assign-state');
-        select.innerHTML = '';
-        const player = getCurrentPlayer();
 
-        if(!appState.globalStates) appState.globalStates = [];
-        const available = appState.globalStates.filter(gs => {
-            if(!player.activeStates) player.activeStates = [];
-            return !player.activeStates.some(ast => ast.globalId === gs.id);
+// ==========================================
+// EVENT LISTENERS GENERALES
+// ==========================================
+function setupEventListeners() {
+    const btnAddCurrency = document.getElementById('btn-add-currency');
+    if(btnAddCurrency) {
+        btnAddCurrency.addEventListener('click', () => {
+            const player = getCurrentPlayer();
+            if (player) {
+                player.currencyAmount += 10;
+                saveAppState();
+                updateCurrencyDisplay();
+            }
         });
+    }
 
-        if(available.length === 0) {
-            select.innerHTML = '<option value="">No hay estados disponibles para asignar.</option>';
-            document.getElementById('btn-confirm-assign-state').disabled = true;
-        } else {
-            document.getElementById('btn-confirm-assign-state').disabled = false;
-            available.forEach(gs => {
-                const opt = document.createElement('option');
-                opt.value = gs.id;
-                opt.textContent = gs.nombreBase;
-                select.appendChild(opt);
+    const toggleInput = document.getElementById('mode-toggle');
+    if(toggleInput) {
+        toggleInput.addEventListener('change', () => {
+            document.body.dataset.editMode = toggleInput.checked ? 'true' : 'false';
+            window.updateEditModeUI();
+        });
+    }
+
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => {
+                c.classList.remove('active');
+                c.style.display = '';
             });
-        }
-        openModal('modal-assign-state');
-    };
-}
 
-var btnConfirmAssign = document.getElementById('btn-confirm-assign-state');
-if(btnConfirmAssign) {
-    btnConfirmAssign.onclick = () => {
-        const player = getCurrentPlayer();
-        const globalId = document.getElementById('select-assign-state').value;
-        if(player && globalId) {
-            if(!player.activeStates) player.activeStates = [];
-            player.activeStates.push({
-                id: 'astate_' + Date.now(),
-                globalId: globalId,
-                nivel: 0,
-                desbloqueado: true
-            });
-            recalculateUnlockedStates(player);
-            saveAppState();
-            renderStates();
-            closeModal('modal-assign-state');
-        }
-    };
-}
+            btn.classList.add('active');
+            const targetId = btn.getAttribute('data-target');
+            const targetEl = document.getElementById(targetId);
+            if(targetEl) {
+                targetEl.classList.add('active');
+            }
 
-document.addEventListener('DOMContentLoaded', init);
+            if (targetId === 'tab-rasgos') {
+                setTimeout(drawLines, 50);
+            }
+            window.updateEditModeUI();
+        });
+    });
+
+    window.addEventListener('resize', () => {
+        if (document.getElementById('tab-rasgos') && document.getElementById('tab-rasgos').classList.contains('active')) {
+            drawLines();
+        }
+    });
+}

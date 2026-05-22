@@ -78,8 +78,8 @@ input:checked + .slider:before { transform: translateX(26px); }
 
 /* Tab Content */
 .main-content { flex: 1; display: flex; flex-direction: column; position: relative; overflow: auto; }
-.tab-content { display: none; flex: 1; width: 100%; position: relative; }
-.tab-content.active { display: flex; flex-direction: column; }
+.tab-content { display: none; width: 100%; position: relative; }
+.tab-content.active { display: block; }
 
 /* Admin Toolbar */
 .admin-toolbar { padding: 15px 30px; background-color: rgba(255,255,255,0.02); border-bottom: 1px dashed var(--border-color); display: flex; justify-content: flex-end; }
@@ -375,4 +375,72 @@ body:not(.edit-mode) .node.maxed { cursor: default; }
 .admin-toolbar {
     position: relative;
     z-index: 10;
+}
+
+/* =========================================
+   NUEVO: Pestaña Cuerpo y HP
+   ========================================= */
+.hp-section {
+    padding: 30px;
+    background-color: var(--bg-surface-light);
+    border-bottom: 2px solid var(--border-color);
+    text-align: center;
+}
+
+.hp-display h3 {
+    margin: 0 0 15px 0;
+    color: white;
+}
+
+.hp-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 15px;
+    background-color: var(--bg-color);
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.hp-value {
+    font-size: 2rem;
+    font-weight: bold;
+    min-width: 120px;
+}
+
+.body-zones-grid {
+    padding: 40px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    align-items: start;
+}
+
+.body-zone {
+    background-color: rgba(255,255,255,0.02);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.body-zone h4 {
+    margin-top: 0;
+    color: var(--accent-color);
+    border-bottom: 1px dashed var(--border-color);
+    padding-bottom: 10px;
+}
+
+.states-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.state-scale-controls {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-top: 10px;
 }

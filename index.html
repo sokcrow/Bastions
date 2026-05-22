@@ -53,12 +53,34 @@
 
             <!-- Sistema de navegación por pestañas -->
             <nav class="tabs-nav" id="tabs-container">
+                <button class="tab-btn" data-target="tab-cuerpo">Cuerpo (HP)</button>
                 <button class="tab-btn" data-target="tab-atributos">Atributos</button>
                 <button class="tab-btn active" data-target="tab-rasgos">Rasgos (Árbol)</button>
-                <button class="tab-btn" data-target="tab-estados">Estados</button>
+                <button class="tab-btn" data-target="tab-estados">Catálogo de Estados</button>
             </nav>
 
-            <div class="main-content" id="content-container">
+                        <div class="main-content" id="content-container">
+                <!-- Pestaña: Cuerpo -->
+                <section id="tab-cuerpo" class="tab-content">
+                    <div class="hp-section">
+                        <div class="hp-display">
+                            <h3>Puntos de Golpe (HP)</h3>
+                            <div class="hp-controls">
+                                <button class="btn btn-danger" onclick="changeHp(-5)">-5</button>
+                                <button class="btn btn-danger" onclick="changeHp(-1)">-1</button>
+                                <div class="hp-value"><span id="current-hp">100</span> / <span id="max-hp">100</span></div>
+                                <button class="btn btn-success" onclick="changeHp(1)">+1</button>
+                                <button class="btn btn-success" onclick="changeHp(5)">+5</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3 style="padding: 0 40px; margin-bottom:0;">Estado de las Zonas del Cuerpo</h3>
+                    <div class="body-zones-grid" id="body-zones-container">
+                        <!-- Las zonas y sus estados se inyectan en JS -->
+                    </div>
+                </section>
+
                 <!-- Pestaña: Atributos -->
                 <section id="tab-atributos" class="tab-content">
                     <div class="admin-toolbar" id="toolbar-atributos" style="display: none;">
@@ -210,6 +232,18 @@
                     <!-- Opciones -->
                 </select>
             </div>
+            <div class="form-group">
+                <label>¿A qué zona se aplica?</label>
+                <select id="select-assign-bodypart">
+                    <option value="general">General (Todo el cuerpo)</option>
+                    <option value="cabeza">Cabeza</option>
+                    <option value="torso">Torso</option>
+                    <option value="brazo_izq">Brazo Izquierdo</option>
+                    <option value="brazo_der">Brazo Derecho</option>
+                    <option value="pierna_izq">Pierna Izquierda</option>
+                    <option value="pierna_der">Pierna Derecha</option>
+                </select>
+            </div>
             <div class="modal-actions">
                 <button class="btn" onclick="closeModal('modal-assign-state')">Cancelar</button>
                 <button id="btn-confirm-assign-state" class="btn btn-primary">Asignar</button>
@@ -217,51 +251,22 @@
         </div>
     </div>
 
-    <!-- Modal: Añadir/Editar Estado -->
+    <!-- Modal: Añadir/Editar Estado (Catálogo) -->
     <div id="modal-state" class="modal">
         <div class="modal-content">
-            <h3 id="modal-state-title">Estado</h3>
+            <h3 id="modal-state-title">Estado Base (Plantilla)</h3>
+            <p class="text-muted" style="margin-top:-15px; margin-bottom:15px; font-size:0.85rem;">Los estados no tienen costo ni atributos. Solo se aplican y escalan.</p>
             <div class="form-group">
                 <label for="input-state-name">Nombre Base:</label>
-                <input type="text" id="input-state-name" placeholder="Ej. Aura de Fuego">
+                <input type="text" id="input-state-name" placeholder="Ej. Sangrado">
             </div>
             <div class="form-group">
                 <label for="input-state-desc">Efecto / Escalado:</label>
-                <textarea id="input-state-desc" rows="2" placeholder="Ej. Daño de fuego adicional."></textarea>
-            </div>
-            <div class="form-row">
-                <div class="form-group half">
-                    <label for="input-state-cost1">Costo (Nivel 1):</label>
-                    <input type="number" id="input-state-cost1" value="10" min="0">
-                </div>
-                <div class="form-group half">
-                    <label for="input-state-cost2">Costo (Nivel 2):</label>
-                    <input type="number" id="input-state-cost2" value="20" min="0">
-                </div>
-            </div>
-            <h4 style="margin: 10px 0 5px 0; color: #888; font-size:0.9rem;">Requisitos de Atributo D&D</h4>
-            <div class="form-row">
-                <div class="form-group half">
-                    <label>Atributo:</label>
-                    <select id="select-state-req-attr">
-                        <option value="">Ninguno</option>
-                        <option value="str">Fuerza</option>
-                        <option value="dex">Destreza</option>
-                        <option value="con">Constitución</option>
-                        <option value="int">Inteligencia</option>
-                        <option value="wis">Sabiduría</option>
-                        <option value="cha">Carisma</option>
-                    </select>
-                </div>
-                <div class="form-group half">
-                    <label>Valor Mínimo:</label>
-                    <input type="number" id="input-state-req-attr-val" value="10" min="1">
-                </div>
+                <textarea id="input-state-desc" rows="3" placeholder="Ej. Pierdes 2 HP por turno. Escala 2 HP más por nivel."></textarea>
             </div>
             <div class="modal-actions">
-                <button id="btn-delete-state" class="btn btn-danger" style="display:none; margin-right:auto;">Eliminar</button>
-                <button class="btn" onclick="closeModal('modal-state')">Cancelar</button>
-                <button id="btn-save-state" class="btn btn-primary">Guardar</button>
+                <button class="btn" onclick="closeModal('modal-state'); openModal('modal-global-states');">Cancelar</button>
+                <button id="btn-save-state" class="btn btn-primary">Guardar Plantilla</button>
             </div>
         </div>
     </div>
