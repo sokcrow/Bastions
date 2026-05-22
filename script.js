@@ -1,35 +1,63 @@
 // Estructura de Datos Global
 let appState = {
-    players: [], // Array de objetos jugador
+    players: [],
     currentPlayerId: null
 };
 
-// Plantilla de nuevo jugador
+// Plantilla de nuevo jugador (ahora con atributos D&D)
 function createNewPlayer(name, currencyName) {
     return {
         id: 'player_' + Date.now(),
-        name: name || 'Nuevo Jugador',
+        name: name || 'Jugador 1',
         currencyName: currencyName || 'Mérito',
         currencyAmount: 0,
+        attributes: {
+            str: 10, // Fuerza
+            dex: 10, // Destreza
+            con: 10, // Constitución
+            int: 10, // Inteligencia
+            wis: 10, // Sabiduría
+            cha: 10  // Carisma
+        },
         traits: [],
         estados: []
     };
 }
 
+// Mapeo amigable de atributos
+const attrNames = {
+    str: 'Fuerza',
+    dex: 'Destreza',
+    con: 'Constitución',
+    int: 'Inteligencia',
+    wis: 'Sabiduría',
+    cha: 'Carisma'
+};
+
 let isEditMode = false;
-let editingItem = null; // Guarda temporalmente el item siendo editado en el modal
+let editingItem = null;
 
 // ==========================================
 // INICIALIZACIÓN Y GUARDADO
 // ==========================================
 function init() {
     loadAppState();
+
+    // Auto-crear un jugador inicial si la lista está completamente vacía
+    if (appState.players.length === 0) {
+        const defaultPlayer = createNewPlayer("Jugador 1", "Mérito");
+        appState.players.push(defaultPlayer);
+        appState.currentPlayerId = defaultPlayer.id;
+        saveAppState();
+    }
+
     renderSidebar();
 
-    if (appState.currentPlayerId) {
+    // Seleccionar el jugador actual (o el primero)
+    if (appState.currentPlayerId && appState.players.find(p => p.id === appState.currentPlayerId)) {
         selectPlayer(appState.currentPlayerId);
-    } else {
-        showEmptyState();
+    } else if (appState.players.length > 0) {
+        selectPlayer(appState.players[0].id);
     }
 
     setupEventListeners();
@@ -40,24 +68,15 @@ function loadAppState() {
     if (saved) {
         try {
             appState = JSON.parse(saved);
+            // Asegurar que jugadores viejos tengan objeto de atributos
+            appState.players.forEach(p => {
+                if (!p.attributes) {
+                    p.attributes = { str:10, dex:10, con:10, int:10, wis:10, cha:10 };
+                }
+            });
         } catch (e) {
             console.error("Error parsing saved state", e);
         }
-    }
-
-    // Migración de datos viejos si existe 'skillTreeState'
-    const oldState = localStorage.getItem('skillTreeState');
-    if (oldState && appState.players.length === 0) {
-        try {
-            const oldData = JSON.parse(oldState);
-            const migratedPlayer = createNewPlayer("Jugador Heredado", "Mérito");
-            migratedPlayer.currencyAmount = oldData.merit || 0;
-            migratedPlayer.traits = oldData.traits || [];
-            migratedPlayer.estados = oldData.estados || [];
-            appState.players.push(migratedPlayer);
-            appState.currentPlayerId = migratedPlayer.id;
-            localStorage.removeItem('skillTreeState'); // Limpiar el viejo
-        } catch(e){}
     }
 }
 
@@ -115,6 +134,7 @@ function selectPlayer(id) {
         document.getElementById('currency-name').textContent = player.currencyName;
 
         updateCurrencyDisplay();
+        renderAttributes();
         recalculateUnlockedStates(player);
         renderTree();
         renderStates();
@@ -144,10 +164,10 @@ function updateCurrencyDisplay() {
 }
 
 function deletePlayer(id) {
-    if (confirm("¿Seguro que deseas eliminar este jugador y todo su progreso?")) {
+    if (confirm("¿Seguro que deseas eliminar este jugador?")) {
         appState.players = appState.players.filter(p => p.id !== id);
         if (appState.currentPlayerId === id) {
-            appState.currentPlayerId = null;
+            appState.currentPlayerId = appState.players.length > 0 ? appState.players[0].id : null;
         }
         saveAppState();
         renderSidebar();
@@ -156,19 +176,92 @@ function deletePlayer(id) {
 }
 
 // ==========================================
+// RENDER: ATRIBUTOS (D&D)
+// ==========================================
+function renderAttributes() {
+    const player = getCurrentPlayer();
+    if (!player) return;
+
+    const container = document.getElementById('attributes-container');
+    container.innerHTML = '';
+
+    Object.keys(player.attributes).forEach(key => {
+        const val = player.attributes[key];
+        const attrName = attrNames[key];
+
+        const card = document.createElement('div');
+        card.className = 'attr-card';
+        card.innerHTML = `
+            <div class="attr-name">${attrName}</div>
+            <div class="attr-value" id="val-${key}">${val}</div>
+            <div class="attr-controls">
+                <button class="btn-attr" onclick="changeAttr('${key}', -1)">-</button>
+                <button class="btn-attr" onclick="changeAttr('${key}', 1)">+</button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+window.changeAttr = function(key, delta) {
+    if (!isEditMode) return;
+    const player = getCurrentPlayer();
+    if (!player) return;
+
+    player.attributes[key] += delta;
+    if(player.attributes[key] < 1) player.attributes[key] = 1; // Mínimo 1
+
+    document.getElementById(`val-${key}`).textContent = player.attributes[key];
+    saveAppState();
+
+    // Al cambiar un atributo, puede que se desbloqueen o bloqueen cosas
+    recalculateUnlockedStates(player);
+    renderTree();
+    renderStates();
+    if (document.getElementById('tab-rasgos').classList.contains('active')) setTimeout(drawLines, 50);
+};
+
+// ==========================================
 // LÓGICA DEL ÁRBOL Y ESTADOS
 // ==========================================
 function recalculateUnlockedStates(player) {
+    // Para Rasgos
     player.traits.forEach(trait => {
-        if (!trait.requisitos || trait.requisitos.length === 0) {
-            trait.desbloqueado = true;
-        } else {
-            const allReqsMet = trait.requisitos.every(reqId => {
+        // 1. Verificar Requisitos de Árbol (Padres)
+        let parentsMet = true;
+        if (trait.requisitos && trait.requisitos.length > 0) {
+            parentsMet = trait.requisitos.every(reqId => {
                 const reqTrait = player.traits.find(t => t.id === reqId);
                 return reqTrait && reqTrait.nivel > 0;
             });
-            trait.desbloqueado = allReqsMet;
         }
+
+        // 2. Verificar Requisitos de Atributo D&D
+        let attrMet = true;
+        trait.reqAttrFailMsg = null;
+        if (trait.reqAttr && trait.reqAttr.key && trait.reqAttr.val) {
+            const currentVal = player.attributes[trait.reqAttr.key] || 0;
+            if (currentVal < trait.reqAttr.val) {
+                attrMet = false;
+                trait.reqAttrFailMsg = `Requiere ${attrNames[trait.reqAttr.key]} ${trait.reqAttr.val}`;
+            }
+        }
+
+        trait.desbloqueado = parentsMet && attrMet;
+    });
+
+    // Para Estados (Solo Requisitos D&D)
+    player.estados.forEach(estado => {
+        let attrMet = true;
+        estado.reqAttrFailMsg = null;
+        if (estado.reqAttr && estado.reqAttr.key && estado.reqAttr.val) {
+            const currentVal = player.attributes[estado.reqAttr.key] || 0;
+            if (currentVal < estado.reqAttr.val) {
+                attrMet = false;
+                estado.reqAttrFailMsg = `Requiere ${attrNames[estado.reqAttr.key]} ${estado.reqAttr.val}`;
+            }
+        }
+        estado.desbloqueado = attrMet;
     });
 }
 
@@ -222,23 +315,25 @@ function renderTree() {
             const costText = getCurrentCost(trait);
             const descHtml = trait.descripcion ? `<div class="state-desc" style="display:none">${trait.descripcion}</div>` : '';
 
-            // Badge para edición
+            // Mostrar por qué está bloqueado si es por atributos
+            let warningHtml = '';
+            if (!trait.desbloqueado && trait.reqAttrFailMsg && trait.nivel === 0) {
+                warningHtml = `<div class="req-warning">${trait.reqAttrFailMsg}</div>`;
+            }
+
             const badge = `<div class="edit-badge">✎</div>`;
 
             node.innerHTML = `
                 ${badge}
                 <div class="node-name">${name}</div>
                 <div class="node-cost">${costText}</div>
+                ${warningHtml}
                 ${descHtml}
             `;
 
-            // Comportamiento según el modo
-            node.addEventListener('click', (e) => {
-                if (isEditMode) {
-                    openModalTrait(trait);
-                } else {
-                    handleUpgrade(trait, 'trait', `node-${trait.id}`);
-                }
+            node.addEventListener('click', () => {
+                if (isEditMode) openModalTrait(trait);
+                else handleUpgrade(trait, 'trait', `node-${trait.id}`);
             });
 
             tierDiv.appendChild(node);
@@ -269,12 +364,17 @@ function renderStates() {
         card.id = `state-${estado.id}`;
 
         if (estado.nivel === 2) card.classList.add('maxed');
-        else if (estado.desbloqueado !== false) card.classList.add('unlocked');
+        else if (estado.desbloqueado) card.classList.add('unlocked');
         else card.classList.add('locked');
 
         const name = estado.nombreBase + getLevelSuffix(estado.nivel);
         const costText = getCurrentCost(estado);
         const descText = estado.descripcion || '';
+
+        let warningHtml = '';
+        if (!estado.desbloqueado && estado.reqAttrFailMsg && estado.nivel === 0) {
+            warningHtml = `<div class="req-warning">${estado.reqAttrFailMsg}</div>`;
+        }
 
         const badge = `<div class="edit-badge">✎</div>`;
 
@@ -282,15 +382,13 @@ function renderStates() {
             ${badge}
             <div class="state-name">${name}</div>
             <div class="state-cost">${costText}</div>
+            ${warningHtml}
             ${descText ? `<div class="state-desc">${descText}</div>` : ''}
         `;
 
         card.addEventListener('click', () => {
-            if (isEditMode) {
-                openModalState(estado);
-            } else {
-                handleUpgrade(estado, 'state', `state-${estado.id}`);
-            }
+            if (isEditMode) openModalState(estado);
+            else handleUpgrade(estado, 'state', `state-${estado.id}`);
         });
 
         container.appendChild(card);
@@ -304,11 +402,9 @@ function handleUpgrade(item, type, elementId) {
     const player = getCurrentPlayer();
     if (!player) return;
 
-    // Validaciones
-    if ((type === 'trait' && !item.desbloqueado) || (type==='state' && item.desbloqueado === false)) {
+    if (!item.desbloqueado || item.nivel >= 2) {
         shakeElement(elementId); return;
     }
-    if (item.nivel >= 2) return;
 
     const costArray = item.costeMerito || [0,0];
     const cost = costArray[item.nivel] || 0;
@@ -378,7 +474,8 @@ function drawLines() {
 
                 const reqTrait = player.traits.find(t => t.id === reqId);
                 const isReqMet = reqTrait && reqTrait.nivel > 0;
-                const isActive = isReqMet && (trait.desbloqueado || trait.nivel > 0);
+                // La línea se pinta activa si el padre se cumplió, sin importar el requisito de atributo.
+                const isActive = isReqMet && (trait.nivel > 0 || trait.desbloqueado);
 
                 line.setAttribute("class", `connection-line ${isActive ? 'active' : 'inactive'}`);
                 line.setAttribute("fill", "none");
@@ -396,33 +493,31 @@ function updateEditModeUI() {
     const modeLabel = document.getElementById('mode-label');
     const tbRasgos = document.getElementById('toolbar-rasgos');
     const tbEstados = document.getElementById('toolbar-estados');
+    const tbAtributos = document.getElementById('toolbar-atributos');
 
     if (isEditMode) {
         body.classList.add('edit-mode');
         modeLabel.textContent = "Modo Edición";
         tbRasgos.style.display = 'flex';
         tbEstados.style.display = 'flex';
+        tbAtributos.style.display = 'block';
     } else {
         body.classList.remove('edit-mode');
         modeLabel.textContent = "Modo Juego";
         tbRasgos.style.display = 'none';
         tbEstados.style.display = 'none';
+        tbAtributos.style.display = 'none';
     }
 }
 
-function openModal(id) {
-    document.getElementById(id).classList.add('active');
-}
-function closeModal(id) {
-    document.getElementById(id).classList.remove('active');
-    editingItem = null;
-}
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); editingItem = null; }
 
 // Modal Jugador
 document.getElementById('btn-add-player').onclick = () => {
     editingItem = null;
     document.getElementById('input-player-name').value = '';
-    document.getElementById('input-currency-name').value = 'Puntos';
+    document.getElementById('input-currency-name').value = 'Puntos de Atributo';
     document.getElementById('modal-player-title').textContent = "Nuevo Jugador";
     openModal('modal-player');
 };
@@ -440,11 +535,9 @@ document.getElementById('btn-save-player').onclick = () => {
     const curr = document.getElementById('input-currency-name').value.trim() || 'Moneda';
 
     if (editingItem && appState.players.find(p => p.id === editingItem.id)) {
-        // Editando
         editingItem.name = name;
         editingItem.currencyName = curr;
     } else {
-        // Nuevo
         const newP = createNewPlayer(name, curr);
         appState.players.push(newP);
         appState.currentPlayerId = newP.id;
@@ -462,7 +555,6 @@ function populateReqSelect(currentPlayer, currentTraitId) {
     if (!currentPlayer) return;
 
     currentPlayer.traits.forEach(t => {
-        // Un rasgo no puede depender de sí mismo
         if (t.id !== currentTraitId) {
             const opt = document.createElement('option');
             opt.value = t.id;
@@ -480,6 +572,8 @@ document.getElementById('btn-add-trait').onclick = () => {
     document.getElementById('input-trait-cost1').value = '10';
     document.getElementById('input-trait-cost2').value = '20';
     document.getElementById('select-trait-tier').value = '1';
+    document.getElementById('select-trait-req-attr').value = '';
+    document.getElementById('input-trait-req-attr-val').value = '10';
     document.getElementById('btn-delete-trait').style.display = 'none';
 
     populateReqSelect(getCurrentPlayer(), null);
@@ -495,15 +589,19 @@ function openModalTrait(trait) {
     const costs = trait.costeMerito || [10,20];
     document.getElementById('input-trait-cost1').value = costs[0];
     document.getElementById('input-trait-cost2').value = costs[1];
-
     document.getElementById('select-trait-tier').value = trait.tier || 1;
 
     populateReqSelect(getCurrentPlayer(), trait.id);
     const reqSelect = document.getElementById('select-trait-req');
-    if (trait.requisitos && trait.requisitos.length > 0) {
-        reqSelect.value = trait.requisitos[0];
+    if (trait.requisitos && trait.requisitos.length > 0) reqSelect.value = trait.requisitos[0];
+    else reqSelect.value = "";
+
+    if (trait.reqAttr) {
+        document.getElementById('select-trait-req-attr').value = trait.reqAttr.key || '';
+        document.getElementById('input-trait-req-attr-val').value = trait.reqAttr.val || 10;
     } else {
-        reqSelect.value = "";
+        document.getElementById('select-trait-req-attr').value = '';
+        document.getElementById('input-trait-req-attr-val').value = 10;
     }
 
     document.getElementById('btn-delete-trait').style.display = 'block';
@@ -521,12 +619,17 @@ document.getElementById('btn-save-trait').onclick = () => {
     const tier = parseInt(document.getElementById('select-trait-tier').value) || 1;
     const req = document.getElementById('select-trait-req').value;
 
+    const reqAttrKey = document.getElementById('select-trait-req-attr').value;
+    const reqAttrVal = parseInt(document.getElementById('input-trait-req-attr-val').value) || 1;
+    const reqAttrObj = reqAttrKey ? { key: reqAttrKey, val: reqAttrVal } : null;
+
     if (editingItem) {
         editingItem.nombreBase = name;
         editingItem.descripcion = desc;
         editingItem.costeMerito = [c1, c2];
         editingItem.tier = tier;
         editingItem.requisitos = req ? [req] : [];
+        editingItem.reqAttr = reqAttrObj;
     } else {
         const newTrait = {
             id: 'trait_' + Date.now(),
@@ -534,9 +637,9 @@ document.getElementById('btn-save-trait').onclick = () => {
             descripcion: desc,
             nivel: 0,
             costeMerito: [c1, c2],
-            desbloqueado: !req,
             requisitos: req ? [req] : [],
-            tier: tier
+            tier: tier,
+            reqAttr: reqAttrObj
         };
         player.traits.push(newTrait);
     }
@@ -553,14 +656,9 @@ document.getElementById('btn-delete-trait').onclick = () => {
     if (!player || !editingItem) return;
     if (confirm("¿Eliminar rasgo? Los hijos que dependan de él podrían romperse.")) {
         player.traits = player.traits.filter(t => t.id !== editingItem.id);
-
-        // Limpiar dependencias huerfanas
         player.traits.forEach(t => {
-            if(t.requisitos) {
-                t.requisitos = t.requisitos.filter(r => r !== editingItem.id);
-            }
+            if(t.requisitos) t.requisitos = t.requisitos.filter(r => r !== editingItem.id);
         });
-
         recalculateUnlockedStates(player);
         saveAppState();
         renderTree();
@@ -577,6 +675,8 @@ document.getElementById('btn-add-state').onclick = () => {
     document.getElementById('input-state-desc').value = '';
     document.getElementById('input-state-cost1').value = '10';
     document.getElementById('input-state-cost2').value = '20';
+    document.getElementById('select-state-req-attr').value = '';
+    document.getElementById('input-state-req-attr-val').value = '10';
     document.getElementById('btn-delete-state').style.display = 'none';
     openModal('modal-state');
 };
@@ -591,6 +691,14 @@ function openModalState(estado) {
     document.getElementById('input-state-cost1').value = costs[0];
     document.getElementById('input-state-cost2').value = costs[1];
 
+    if (estado.reqAttr) {
+        document.getElementById('select-state-req-attr').value = estado.reqAttr.key || '';
+        document.getElementById('input-state-req-attr-val').value = estado.reqAttr.val || 10;
+    } else {
+        document.getElementById('select-state-req-attr').value = '';
+        document.getElementById('input-state-req-attr-val').value = 10;
+    }
+
     document.getElementById('btn-delete-state').style.display = 'block';
     openModal('modal-state');
 }
@@ -604,10 +712,15 @@ document.getElementById('btn-save-state').onclick = () => {
     const c1 = parseInt(document.getElementById('input-state-cost1').value) || 0;
     const c2 = parseInt(document.getElementById('input-state-cost2').value) || 0;
 
+    const reqAttrKey = document.getElementById('select-state-req-attr').value;
+    const reqAttrVal = parseInt(document.getElementById('input-state-req-attr-val').value) || 1;
+    const reqAttrObj = reqAttrKey ? { key: reqAttrKey, val: reqAttrVal } : null;
+
     if (editingItem) {
         editingItem.nombreBase = name;
         editingItem.descripcion = desc;
         editingItem.costeMerito = [c1, c2];
+        editingItem.reqAttr = reqAttrObj;
     } else {
         const newState = {
             id: 'state_' + Date.now(),
@@ -615,12 +728,13 @@ document.getElementById('btn-save-state').onclick = () => {
             descripcion: desc,
             nivel: 0,
             costeMerito: [c1, c2],
-            desbloqueado: true
+            reqAttr: reqAttrObj
         };
         if(!player.estados) player.estados = [];
         player.estados.push(newState);
     }
 
+    recalculateUnlockedStates(player);
     saveAppState();
     renderStates();
     closeModal('modal-state');
@@ -641,7 +755,6 @@ document.getElementById('btn-delete-state').onclick = () => {
 // EVENT LISTENERS GENERALES
 // ==========================================
 function setupEventListeners() {
-    // Añadir moneda
     document.getElementById('btn-add-currency').addEventListener('click', () => {
         const player = getCurrentPlayer();
         if (player) {
@@ -651,13 +764,11 @@ function setupEventListeners() {
         }
     });
 
-    // Toggle Edit Mode
     document.getElementById('mode-toggle').addEventListener('change', (e) => {
         isEditMode = e.target.checked;
         updateEditModeUI();
     });
 
-    // Tabs
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
 
