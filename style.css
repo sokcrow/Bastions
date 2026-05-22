@@ -318,3 +318,61 @@ body:not(.edit-mode) .node.maxed { cursor: default; }
         gap: 15px;
     }
 }
+
+/* =========================================
+   NUEVO: Cámara Libre (Tree Viewport)
+   ========================================= */
+.tree-viewport {
+    flex: 1;
+    overflow: hidden; /* Ocultamos el scroll nativo */
+    position: relative;
+    cursor: grab;
+    background-color: var(--bg-color); /* Fondo del "tablero" */
+    min-height: 500px;
+}
+
+.tree-viewport:active {
+    cursor: grabbing;
+}
+
+.tree-container {
+    /* El contenedor ahora es libre, ya no usa flex centering estricto */
+    position: absolute;
+    top: 50%; /* Punto de partida visual */
+    left: 50%;
+    transform-origin: 0 0;
+    /* transition: transform 0.1s ease-out; Opcional, puede dar lag en drag */
+    display: flex;
+    justify-content: center;
+    padding: 0;
+    min-height: auto;
+    width: 0; /* Para que el centrado funcione usando translate */
+    height: 0;
+}
+
+#nodes-container {
+    /* Ajuste para que los nodos fluyan desde el centro (0,0) del transform */
+    transform: translate(-50%, -50%);
+}
+
+#connections-svg {
+    /* El SVG debe expandirse mucho más allá para no cortar líneas al hacer pan */
+    width: 4000px;
+    height: 4000px;
+    transform: translate(-50%, -50%);
+}
+
+.global-state-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px; border-bottom: 1px solid #333;
+}
+.global-state-item:last-child { border-bottom: none; }
+.btn-secondary { background: #333; color: white; border-color: #555; }
+.btn-secondary:hover { background: #444; }
+
+
+/* Asegurar que las toolbars sean interactuables sobre el viewport */
+.admin-toolbar {
+    position: relative;
+    z-index: 10;
+}

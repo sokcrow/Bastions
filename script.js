@@ -1,7 +1,8 @@
 // Estructura de Datos Global
 let appState = {
     players: [],
-    currentPlayerId: null
+    currentPlayerId: null,
+    globalStates: []
 };
 
 // Plantilla de nuevo jugador (ahora con atributos D&D)
@@ -34,13 +35,14 @@ const attrNames = {
     cha: 'Carisma'
 };
 
-let isEditMode = false;
+
 let editingItem = null;
 
 // ==========================================
 // INICIALIZACIÓN Y GUARDADO
 // ==========================================
 function init() {
+    document.body.dataset.editMode = "false";
     loadAppState();
 
     // Auto-crear un jugador inicial si la lista está completamente vacía
@@ -61,6 +63,7 @@ function init() {
     }
 
     setupEventListeners();
+    initPanZoom();
 }
 
 function loadAppState() {
@@ -73,7 +76,12 @@ function loadAppState() {
                 if (!p.attributes) {
                     p.attributes = { str:10, dex:10, con:10, int:10, wis:10, cha:10 };
                 }
+                if (!p.activeStates) {
+                    p.activeStates = [];
+                    // Move existing states to global if needed, or just let them be legacy
+                }
             });
+            if (!appState.globalStates) appState.globalStates = [];
         } catch (e) {
             console.error("Error parsing saved state", e);
         }
@@ -138,7 +146,7 @@ function selectPlayer(id) {
         recalculateUnlockedStates(player);
         renderTree();
         renderStates();
-        updateEditModeUI();
+        window.updateEditModeUI();
 
         if (document.getElementById('tab-rasgos').classList.contains('active')) {
             setTimeout(drawLines, 50);
@@ -204,7 +212,7 @@ function renderAttributes() {
 }
 
 window.changeAttr = function(key, delta) {
-    if (!isEditMode) return;
+    if (document.body.dataset.editMode !== 'true') return;
     const player = getCurrentPlayer();
     if (!player) return;
 
@@ -251,18 +259,23 @@ function recalculateUnlockedStates(player) {
     });
 
     // Para Estados (Solo Requisitos D&D)
-    player.estados.forEach(estado => {
-        let attrMet = true;
-        estado.reqAttrFailMsg = null;
-        if (estado.reqAttr && estado.reqAttr.key && estado.reqAttr.val) {
-            const currentVal = player.attributes[estado.reqAttr.key] || 0;
-            if (currentVal < estado.reqAttr.val) {
-                attrMet = false;
-                estado.reqAttrFailMsg = `Requiere ${attrNames[estado.reqAttr.key]} ${estado.reqAttr.val}`;
+    if(player.activeStates) {
+        player.activeStates.forEach(activeState => {
+            const globalState = appState.globalStates.find(s => s.id === activeState.globalId);
+            if(!globalState) return;
+
+            let attrMet = true;
+            activeState.reqAttrFailMsg = null;
+            if (globalState.reqAttr && globalState.reqAttr.key && globalState.reqAttr.val) {
+                const currentVal = player.attributes[globalState.reqAttr.key] || 0;
+                if (currentVal < globalState.reqAttr.val) {
+                    attrMet = false;
+                    activeState.reqAttrFailMsg = `Requiere ${attrNames[globalState.reqAttr.key]} ${globalState.reqAttr.val}`;
+                }
             }
-        }
-        estado.desbloqueado = attrMet;
-    });
+            activeState.desbloqueado = attrMet;
+        });
+    }
 }
 
 function getLevelSuffix(nivel) {
@@ -332,7 +345,7 @@ function renderTree() {
             `;
 
             node.addEventListener('click', () => {
-                if (isEditMode) openModalTrait(trait);
+                if (document.body.dataset.editMode === 'true') openModalTrait(trait);
                 else handleUpgrade(trait, 'trait', `node-${trait.id}`);
             });
 
@@ -353,48 +366,61 @@ function renderStates() {
     const container = document.getElementById('states-container');
     container.innerHTML = '';
 
-    if (!player.estados || player.estados.length === 0) {
-        container.innerHTML = '<p style="color:#aaa; grid-column: 1/-1;">No hay estados definidos.</p>';
+    if (!player.activeStates || player.activeStates.length === 0) {
+        container.innerHTML = '<p style="color:#aaa; grid-column: 1/-1;">No hay estados asignados a este jugador.</p>';
         return;
     }
 
-    player.estados.forEach(estado => {
+    player.activeStates.forEach(activeState => {
+        // Encontrar el estado global correspondiente
+        const globalState = appState.globalStates.find(s => s.id === activeState.globalId);
+        if(!globalState) return; // Si se borró del global, lo ignoramos
+
         const card = document.createElement('div');
         card.className = 'state-card';
-        card.id = `state-${estado.id}`;
+        card.id = `state-${activeState.id}`;
 
-        if (estado.nivel === 2) card.classList.add('maxed');
-        else if (estado.desbloqueado) card.classList.add('unlocked');
+        // El nivel y el estado desbloqueado pertenecen a la instancia activa del jugador
+        if (activeState.nivel === 2) card.classList.add('maxed');
+        else if (activeState.desbloqueado) card.classList.add('unlocked');
         else card.classList.add('locked');
 
-        const name = estado.nombreBase + getLevelSuffix(estado.nivel);
-        const costText = getCurrentCost(estado);
-        const descText = estado.descripcion || '';
+        const name = globalState.nombreBase + getLevelSuffix(activeState.nivel);
+        const costArray = globalState.costeMerito || [0,0];
+        const cost = activeState.nivel >= 2 ? "MÁXIMO" : costArray[activeState.nivel] + " " + player.currencyName;
+        const descText = globalState.descripcion || '';
 
         let warningHtml = '';
-        if (!estado.desbloqueado && estado.reqAttrFailMsg && estado.nivel === 0) {
-            warningHtml = `<div class="req-warning">${estado.reqAttrFailMsg}</div>`;
+        if (!activeState.desbloqueado && activeState.reqAttrFailMsg && activeState.nivel === 0) {
+            warningHtml = `<div class="req-warning">${activeState.reqAttrFailMsg}</div>`;
         }
 
-        const badge = `<div class="edit-badge">✎</div>`;
+        const badge = `<div class="edit-badge">×</div>`; // En el jugador, el badge sirve para remover la asignación
 
         card.innerHTML = `
             ${badge}
             <div class="state-name">${name}</div>
-            <div class="state-cost">${costText}</div>
+            <div class="state-cost">${cost}</div>
             ${warningHtml}
             ${descText ? `<div class="state-desc">${descText}</div>` : ''}
         `;
 
-        card.addEventListener('click', () => {
-            if (isEditMode) openModalState(estado);
-            else handleUpgrade(estado, 'state', `state-${estado.id}`);
+        card.addEventListener('click', (e) => {
+            if (document.body.dataset.editMode === 'true') {
+                // En modo edición, clickear un estado de jugador lo REMUEVE (porque la edición se hace en el catálogo)
+                if(confirm(`¿Remover '${globalState.nombreBase}' de este jugador?`)){
+                    player.activeStates = player.activeStates.filter(s => s.id !== activeState.id);
+                    saveAppState();
+                    renderStates();
+                }
+            } else {
+                handleUpgradeState(activeState, globalState, `state-${activeState.id}`);
+            }
         });
 
         container.appendChild(card);
     });
 }
-
 // ==========================================
 // LÓGICA DE JUEGO (COMPRAS)
 // ==========================================
@@ -417,8 +443,6 @@ function handleUpgrade(item, type, elementId) {
             recalculateUnlockedStates(player);
             renderTree();
             if (document.getElementById('tab-rasgos').classList.contains('active')) setTimeout(drawLines, 50);
-        } else {
-            renderStates();
         }
 
         saveAppState();
@@ -488,6 +512,13 @@ function drawLines() {
 // ==========================================
 // MODO EDICIÓN Y MODALES
 // ==========================================
+
+
+
+
+
+
+
 function updateEditModeUI() {
     const body = document.body;
     const modeLabel = document.getElementById('mode-label');
@@ -495,20 +526,27 @@ function updateEditModeUI() {
     const tbEstados = document.getElementById('toolbar-estados');
     const tbAtributos = document.getElementById('toolbar-atributos');
 
-    if (isEditMode) {
+    if (body.dataset.editMode === 'true') {
         body.classList.add('edit-mode');
-        modeLabel.textContent = "Modo Edición";
-        tbRasgos.style.display = 'flex';
-        tbEstados.style.display = 'flex';
-        tbAtributos.style.display = 'block';
+        if(modeLabel) modeLabel.textContent = "Modo Edición";
+        if(tbRasgos) tbRasgos.style.display = 'block';
+        if(tbEstados) tbEstados.style.display = 'block';
+        if(tbAtributos) tbAtributos.style.display = 'block';
     } else {
         body.classList.remove('edit-mode');
-        modeLabel.textContent = "Modo Juego";
-        tbRasgos.style.display = 'none';
-        tbEstados.style.display = 'none';
-        tbAtributos.style.display = 'none';
+        if(modeLabel) modeLabel.textContent = "Modo Juego";
+        if(tbRasgos) tbRasgos.style.display = 'none';
+        if(tbEstados) tbEstados.style.display = 'none';
+        if(tbAtributos) tbAtributos.style.display = 'none';
     }
 }
+
+
+
+
+
+
+
 
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); editingItem = null; }
@@ -754,6 +792,19 @@ document.getElementById('btn-delete-state').onclick = () => {
 // ==========================================
 // EVENT LISTENERS GENERALES
 // ==========================================
+
+
+
+
+
+
+
+
+
+
+
+
+
 function setupEventListeners() {
     document.getElementById('btn-add-currency').addEventListener('click', () => {
         const player = getCurrentPlayer();
@@ -764,12 +815,20 @@ function setupEventListeners() {
         }
     });
 
-    document.getElementById('mode-toggle').addEventListener('change', (e) => {
-        isEditMode = e.target.checked;
-        updateEditModeUI();
-    });
+    const toggleInput = document.getElementById('mode-toggle');
+    if(toggleInput) {
+        // En móviles, el click en el toggle a veces se traga el evento de onchange o addEventListener
+        // usar onChange en el objeto DOM directamente es más seguro en JS puro sin frameworks.
+        toggleInput.onchange = function(e) {
+            document.body.dataset.editMode = e.target.checked ? 'true' : 'false';
+            updateEditModeUI();
+        };
+    }
 
     const tabBtns = document.querySelectorAll('.tab-btn');
+('.tab-btn');
+('.tab-btn');
+('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
 
     tabBtns.forEach(btn => {
@@ -781,11 +840,14 @@ function setupEventListeners() {
             const targetId = btn.getAttribute('data-target');
             document.getElementById(targetId).classList.add('active');
 
+
             if (targetId === 'tab-rasgos') {
                 setTimeout(drawLines, 50);
             }
+            updateEditModeUI();
         });
     });
+
 
     window.addEventListener('resize', () => {
         if (document.getElementById('tab-rasgos') && document.getElementById('tab-rasgos').classList.contains('active')) {
@@ -793,39 +855,99 @@ function setupEventListeners() {
         }
     });
 }
+;
 
-// Arrancar
-document.addEventListener('DOMContentLoaded', init);
+// Override the old btn-save-state logic
+document.getElementById('btn-save-state').onclick = () => {
+    const name = document.getElementById('input-state-name').value.trim() || 'Nuevo Estado';
+    const desc = document.getElementById('input-state-desc').value.trim();
+    const c1 = parseInt(document.getElementById('input-state-cost1').value) || 0;
+    const c2 = parseInt(document.getElementById('input-state-cost2').value) || 0;
 
-// Lógica para Menú Móvil
-document.addEventListener('DOMContentLoaded', () => {
-    const btnOpen = document.getElementById('btn-open-sidebar');
-    const btnClose = document.getElementById('btn-close-sidebar');
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('sidebar-overlay');
+    const reqAttrKey = document.getElementById('select-state-req-attr').value;
+    const reqAttrVal = parseInt(document.getElementById('input-state-req-attr-val').value) || 1;
+    const reqAttrObj = reqAttrKey ? { key: reqAttrKey, val: reqAttrVal } : null;
 
-    if (btnOpen && btnClose && sidebar && overlay) {
-        function openSidebar() {
-            sidebar.classList.add('open');
-            overlay.classList.add('active');
-        }
-
-        function closeSidebar() {
-            sidebar.classList.remove('open');
-            overlay.classList.remove('active');
-        }
-
-        btnOpen.addEventListener('click', openSidebar);
-        btnClose.addEventListener('click', closeSidebar);
-        overlay.addEventListener('click', closeSidebar);
-
-        // Modificar selectPlayer global para que cierre el sidebar en móviles
-        const originalSelectPlayer = selectPlayer;
-        window.selectPlayer = function(id) {
-            originalSelectPlayer(id);
-            if (window.innerWidth <= 768) {
-                closeSidebar();
-            }
+    if (editingItem) {
+        editingItem.nombreBase = name;
+        editingItem.descripcion = desc;
+        editingItem.costeMerito = [c1, c2];
+        editingItem.reqAttr = reqAttrObj;
+    } else {
+        const newState = {
+            id: 'gstate_' + Date.now(),
+            nombreBase: name,
+            descripcion: desc,
+            costeMerito: [c1, c2],
+            reqAttr: reqAttrObj
         };
+        appState.globalStates.push(newState);
     }
-});
+
+    saveAppState();
+
+    // Si estábamos editando/creando, volver a la lista de estados globales
+    closeModal('modal-state');
+    renderGlobalStatesList();
+    openModal('modal-global-states');
+
+    // Refrescar si afectó a la UI actual
+    const player = getCurrentPlayer();
+    if(player) {
+        recalculateUnlockedStates(player);
+        renderStates();
+    }
+};
+
+// ==========================================
+// ASIGNAR ESTADO AL JUGADOR
+// ==========================================
+const btnAssignState = document.getElementById('btn-add-state-to-player');
+if(btnAssignState) {
+    btnAssignState.onclick = () => {
+        const select = document.getElementById('select-assign-state');
+        select.innerHTML = '';
+
+        const player = getCurrentPlayer();
+
+        // Mostrar solo los estados que el jugador NO tenga asignados
+        const available = appState.globalStates.filter(gs => {
+            return !player.activeStates.some(ast => ast.globalId === gs.id);
+        });
+
+        if(available.length === 0) {
+            select.innerHTML = '<option value="">No hay estados disponibles para asignar.</option>';
+            document.getElementById('btn-confirm-assign-state').disabled = true;
+        } else {
+            document.getElementById('btn-confirm-assign-state').disabled = false;
+            available.forEach(gs => {
+                const opt = document.createElement('option');
+                opt.value = gs.id;
+                opt.textContent = gs.nombreBase;
+                select.appendChild(opt);
+            });
+        }
+
+        openModal('modal-assign-state');
+    };
+}
+
+const btnConfirmAssign = document.getElementById('btn-confirm-assign-state');
+if(btnConfirmAssign) {
+    btnConfirmAssign.onclick = () => {
+        const player = getCurrentPlayer();
+        const globalId = document.getElementById('select-assign-state').value;
+        if(player && globalId) {
+            player.activeStates.push({
+                id: 'astate_' + Date.now(),
+                globalId: globalId,
+                nivel: 0,
+                desbloqueado: true
+            });
+            recalculateUnlockedStates(player);
+            saveAppState();
+            renderStates();
+            closeModal('modal-assign-state');
+        }
+    };
+}

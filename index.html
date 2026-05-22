@@ -42,8 +42,8 @@
 
                 <div class="header-controls">
                     <div class="toggle-mode">
-                        <label class="switch">
-                            <input type="checkbox" id="mode-toggle">
+                        <label class="switch" for="mode-toggle">
+                            <input type="checkbox" id="mode-toggle" onchange="document.body.dataset.editMode = this.checked ? 'true' : 'false'; updateEditModeUI();">
                             <span class="slider round"></span>
                         </label>
                         <span id="mode-label">Modo Juego</span>
@@ -74,18 +74,21 @@
                     <div class="admin-toolbar" id="toolbar-rasgos" style="display: none;">
                         <button id="btn-add-trait" class="btn btn-primary">+ Añadir Nuevo Rasgo</button>
                     </div>
-                    <div class="tree-container">
-                        <!-- SVG para las líneas conectoras -->
-                        <svg id="connections-svg"></svg>
-                        <!-- Contenedor donde se generarán los nodos del árbol dinámicamente -->
-                        <div id="nodes-container"></div>
+                    <div class="tree-viewport" id="tree-viewport">
+                        <div class="tree-container" id="tree-container" style="transform: translate(0px, 0px) scale(1);">
+                            <!-- SVG para las líneas conectoras -->
+                            <svg id="connections-svg"></svg>
+                            <!-- Contenedor donde se generarán los nodos del árbol dinámicamente -->
+                            <div id="nodes-container"></div>
+                        </div>
                     </div>
                 </section>
 
                 <!-- Pestaña: Estados -->
                 <section id="tab-estados" class="tab-content">
                     <div class="admin-toolbar" id="toolbar-estados" style="display: none;">
-                        <button id="btn-add-state" class="btn btn-primary">+ Añadir Nuevo Estado</button>
+                        <button id="btn-manage-global-states" class="btn btn-secondary">Gestionar Catálogo de Estados</button>
+                        <button id="btn-add-state-to-player" class="btn btn-primary">+ Asignar Estado al Jugador</button>
                     </div>
                     <div class="states-container" id="states-container">
                         <!-- Los estados se inyectarán aquí -->
@@ -178,6 +181,38 @@
                 <button id="btn-delete-trait" class="btn btn-danger" style="display:none; margin-right:auto;">Eliminar</button>
                 <button class="btn" onclick="closeModal('modal-trait')">Cancelar</button>
                 <button id="btn-save-trait" class="btn btn-primary">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Modal: Catálogo Global de Estados -->
+    <div id="modal-global-states" class="modal">
+        <div class="modal-content">
+            <h3>Catálogo Global de Estados</h3>
+            <button id="btn-new-global-state" class="btn btn-primary" style="margin-bottom: 15px;">+ Crear Nuevo Estado Base</button>
+            <div id="global-states-list" style="max-height: 300px; overflow-y: auto; margin-bottom: 15px; border: 1px solid var(--border-color); padding: 10px; border-radius: 4px;">
+                <!-- Lista de estados globales -->
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal('modal-global-states')">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Asignar Estado al Jugador -->
+    <div id="modal-assign-state" class="modal">
+        <div class="modal-content">
+            <h3>Asignar Estado a Jugador</h3>
+            <div class="form-group">
+                <label>Selecciona un Estado del Catálogo:</label>
+                <select id="select-assign-state">
+                    <!-- Opciones -->
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal('modal-assign-state')">Cancelar</button>
+                <button id="btn-confirm-assign-state" class="btn btn-primary">Asignar</button>
             </div>
         </div>
     </div>
