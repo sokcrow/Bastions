@@ -444,3 +444,23 @@ body:not(.edit-mode) .node.maxed { cursor: default; }
     border-top: 1px solid rgba(255,255,255,0.1);
     padding-top: 10px;
 }
+
+/* Sidebar Categories */
+.sidebar-category {
+    padding: 10px 20px;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background-color: rgba(0,0,0,0.2);
+    letter-spacing: 1px;
+    font-weight: bold;
+    border-bottom: 1px solid #333;
+    border-top: 1px solid #333;
+}
+.players-list {
+    flex: none; /* remove flex 1 from lists so they can scroll together if needed, or adjust */
+}
+/* Allow the whole aside content to scroll if there are many */
+#sidebar {
+    overflow-y: auto;
+}

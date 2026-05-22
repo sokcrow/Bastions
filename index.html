@@ -19,9 +19,10 @@
                 <button id="btn-add-player" class="btn btn-small">+ Añadir</button>
                 <button id="btn-close-sidebar" class="btn-close-mobile">&times;</button>
             </div>
-            <ul id="players-list" class="players-list">
-                <!-- Lista de jugadores generada dinámicamente -->
-            </ul>
+            <div class="sidebar-category">Jugadores</div>
+            <ul id="players-list" class="players-list"></ul>
+            <div class="sidebar-category">NPCs</div>
+            <ul id="npcs-list" class="players-list"></ul>
         </aside>
 
         <!-- Contenido Principal -->
@@ -34,9 +35,13 @@
                         <h2 id="current-player-name">Cargando...</h2>
                     </div>
                     <div class="currency-display" id="currency-container">
-                        <span id="currency-name">Moneda</span>: <span id="currency-count">0</span>
-                        <button id="btn-add-currency" class="btn btn-small btn-icon" title="Añadir Moneda">+10</button>
-                        <button id="btn-edit-player" class="btn btn-small btn-icon" title="Configurar Jugador">⚙️</button>
+                        <span id="currency-name">Moneda</span>: <span id="currency-count" style="margin-right: 10px;">0</span>
+                        <div class="currency-actions">
+                            <button onclick="changeCurrency(-1)" class="btn btn-small btn-icon" title="Restar 1">-1</button>
+                            <button onclick="changeCurrency(1)" class="btn btn-small btn-icon" title="Sumar 1">+1</button>
+                            <button onclick="changeCurrency(10)" class="btn btn-small btn-icon" title="Sumar 10">+10</button>
+                        </div>
+                        <button id="btn-edit-player" class="btn btn-small btn-icon" title="Configurar Jugador" style="margin-left:10px;">⚙️</button>
                     </div>
                 </div>
 
@@ -109,11 +114,15 @@
                 <!-- Pestaña: Estados -->
                 <section id="tab-estados" class="tab-content">
                     <div class="admin-toolbar" id="toolbar-estados" style="display: none;">
-                        <button id="btn-manage-global-states" class="btn btn-secondary">Gestionar Catálogo de Estados</button>
-                        <button id="btn-add-state-to-player" class="btn btn-primary">+ Asignar Estado al Jugador</button>
+                        <button id="btn-new-global-state" class="btn btn-primary">+ Crear Nuevo Estado Base</button>
                     </div>
-                    <div class="states-container" id="states-container">
-                        <!-- Los estados se inyectarán aquí -->
+                    <div class="tree-viewport" id="states-viewport">
+                        <div class="tree-container" id="states-tree-container" style="transform: translate(0px, 0px) scale(1);">
+                            <!-- SVG para las líneas conectoras de estados -->
+                            <svg id="states-connections-svg"></svg>
+                            <!-- Contenedor donde se generarán los nodos del árbol de estados -->
+                            <div id="states-nodes-container"></div>
+                        </div>
                     </div>
                 </section>
             </div>
@@ -139,6 +148,13 @@
                 <label for="input-currency-name">Nombre de su Puntuación/Moneda:</label>
                 <input type="text" id="input-currency-name" placeholder="Ej. Puntos de Atributo, Mérito">
             </div>
+            <div class="form-group">
+                <label for="select-player-type">Tipo de Personaje:</label>
+                <select id="select-player-type">
+                    <option value="player">Jugador (PC)</option>
+                    <option value="npc">No Jugador (NPC)</option>
+                </select>
+            </div>
             <div class="modal-actions">
                 <button class="btn" onclick="closeModal('modal-player')">Cancelar</button>
                 <button id="btn-save-player" class="btn btn-primary">Guardar</button>
@@ -159,11 +175,21 @@
                 <textarea id="input-trait-desc" rows="2" placeholder="Ej. Escala con Constitución..."></textarea>
             </div>
             <div class="form-row">
+                <div class="form-group half" style="flex-direction:row; align-items:center; gap:10px;">
+                    <input type="checkbox" id="check-trait-unique" onchange="document.getElementById('group-cost2').style.opacity = this.checked ? '0.3' : '1';">
+                    <label for="check-trait-unique" style="margin:0; cursor:pointer;">Rasgo Único (Max Lvl 1)</label>
+                </div>
+                <div class="form-group half" style="flex-direction:row; align-items:center; gap:10px;">
+                    <input type="checkbox" id="check-trait-hidden">
+                    <label for="check-trait-hidden" style="margin:0; cursor:pointer;" title="En Modo Juego, no se verá hasta que sus requisitos se cumplan.">Oculto si está bloqueado</label>
+                </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group half">
                     <label for="input-trait-cost1">Costo (Nivel 1):</label>
                     <input type="number" id="input-trait-cost1" value="10" min="0">
                 </div>
-                <div class="form-group half">
+                <div class="form-group half" id="group-cost2">
                     <label for="input-trait-cost2">Costo (Nivel 2):</label>
                     <input type="number" id="input-trait-cost2" value="20" min="0">
                 </div>
@@ -208,27 +234,15 @@
     </div>
 
 
-    <!-- Modal: Catálogo Global de Estados -->
-    <div id="modal-global-states" class="modal">
-        <div class="modal-content">
-            <h3>Catálogo Global de Estados</h3>
-            <button id="btn-new-global-state" class="btn btn-primary" style="margin-bottom: 15px;">+ Crear Nuevo Estado Base</button>
-            <div id="global-states-list" style="max-height: 300px; overflow-y: auto; margin-bottom: 15px; border: 1px solid var(--border-color); padding: 10px; border-radius: 4px;">
-                <!-- Lista de estados globales -->
-            </div>
-            <div class="modal-actions">
-                <button class="btn" onclick="closeModal('modal-global-states')">Cerrar</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Modal: Asignar Estado al Jugador -->
     <div id="modal-assign-state" class="modal">
         <div class="modal-content">
-            <h3>Asignar Estado a Jugador</h3>
+            <h3 id="modal-assign-state-title">Aplicar Estado</h3>
+            <input type="hidden" id="hidden-assign-state-id" value="">
             <div class="form-group">
-                <label>Selecciona un Estado del Catálogo:</label>
-                <select id="select-assign-state">
+                <label>Selecciona a qué Jugador aplicarlo:</label>
+                <select id="select-assign-player">
                     <!-- Opciones -->
                 </select>
             </div>
@@ -264,8 +278,21 @@
                 <label for="input-state-desc">Efecto / Escalado:</label>
                 <textarea id="input-state-desc" rows="3" placeholder="Ej. Pierdes 2 HP por turno. Escala 2 HP más por nivel."></textarea>
             </div>
+            <div class="form-row">
+                <div class="form-group half">
+                    <label for="select-state-tier">Nivel de Profundidad (Tier):</label>
+                    <input type="number" id="select-state-tier" value="1" min="1" title="1 es arriba, 2 más abajo, etc.">
+                </div>
+                <div class="form-group half">
+                    <label for="select-state-req">Deriva del Estado (Padre):</label>
+                    <select id="select-state-req">
+                        <option value="">Ninguno</option>
+                    </select>
+                </div>
+            </div>
             <div class="modal-actions">
-                <button class="btn" onclick="closeModal('modal-state'); openModal('modal-global-states');">Cancelar</button>
+                <button id="btn-delete-state" class="btn btn-danger" style="display:none; margin-right:auto;">Eliminar</button>
+                <button class="btn" onclick="closeModal('modal-state');">Cancelar</button>
                 <button id="btn-save-state" class="btn btn-primary">Guardar Plantilla</button>
             </div>
         </div>

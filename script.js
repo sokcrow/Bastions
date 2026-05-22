@@ -35,6 +35,7 @@ function createNewPlayer(name, currencyName) {
         name: name || 'Jugador 1',
         currencyName: currencyName || 'Mérito',
         currencyAmount: 0,
+        type: 'player',
         hp: 100,
         maxHp: 100,
         attributes: {
@@ -66,8 +67,87 @@ let editingItem = null;
 // ==========================================
 
 // ==========================================
-// CATÁLOGO GLOBAL DE ESTADOS
+
 // ==========================================
+// CATÁLOGO GLOBAL DE ESTADOS (ÁRBOL)
+// ==========================================
+
+window.editGlobalState = function(id) {
+    const estado = appState.globalStates.find(s => s.id === id);
+    if(!estado) return;
+    editingItem = estado;
+    document.getElementById('modal-state-title').textContent = "Editar Estado Base";
+    document.getElementById('input-state-name').value = estado.nombreBase;
+    document.getElementById('input-state-desc').value = estado.descripcion || '';
+
+    if(document.getElementById('select-state-tier')) document.getElementById('select-state-tier').value = estado.tier || 1;
+
+    if(typeof populateStateReqSelect === 'function') populateStateReqSelect(estado.id);
+    const reqSelect = document.getElementById('select-state-req');
+    if (reqSelect) {
+        if (estado.requisitos && estado.requisitos.length > 0) reqSelect.value = estado.requisitos[0];
+        else reqSelect.value = "";
+    }
+
+    const btnDel = document.getElementById('btn-delete-state');
+    if(btnDel) btnDel.style.display = 'block';
+
+    openModal('modal-state');
+};
+
+function renderGlobalStatesTree() {
+    const container = document.getElementById('states-nodes-container');
+    if(!container) return;
+    container.innerHTML = '';
+
+    if(!appState.globalStates) appState.globalStates = [];
+
+    const tiers = {};
+    appState.globalStates.forEach(state => {
+        const t = state.tier || 1;
+        if (!tiers[t]) tiers[t] = [];
+        tiers[t].push(state);
+    });
+
+    const sortedTiers = Object.keys(tiers).sort((a, b) => parseInt(a) - parseInt(b));
+
+    sortedTiers.forEach(tierKey => {
+        const tierDiv = document.createElement('div');
+        tierDiv.className = 'tier';
+
+        tiers[tierKey].forEach(state => {
+            const node = document.createElement('div');
+            node.className = 'node unlocked'; // Visualmente como una tarjeta disponible
+            node.id = `gstate-${state.id}`;
+
+            const name = state.nombreBase;
+            const descHtml = state.descripcion ? `<div class="state-desc">${state.descripcion}</div>` : '';
+            const badge = window.isEditMode ? `<div class="edit-badge">✎</div>` : '';
+
+            const btnApply = (document.body.dataset.editMode === "true") ? `<button class="btn btn-primary btn-small" style="margin-top:10px; width:100%;" onclick="event.stopPropagation(); openAssignModal('${state.id}')">Aplicar a...</button>` : '';
+
+            node.innerHTML = `
+                ${badge}
+                <div class="node-name">${name}</div>
+                ${descHtml}
+                ${btnApply}
+            `;
+
+            node.addEventListener('click', () => {
+                if(document.body.dataset.editMode === "true") editGlobalState(state.id);
+            });
+
+            tierDiv.appendChild(node);
+        });
+
+        container.appendChild(tierDiv);
+    });
+
+    if (document.getElementById('tab-estados').classList.contains('active')) {
+        setTimeout(drawStatesLines, 50);
+    }
+}
+
 
 
 
@@ -76,8 +156,7 @@ let editingItem = null;
 var btnManageGlobalStates = document.getElementById('btn-manage-global-states');
 if(btnManageGlobalStates) {
     btnManageGlobalStates.onclick = () => {
-        if(typeof renderGlobalStatesList === 'function') renderGlobalStatesList();
-        openModal('modal-global-states');
+
     };
 }
 
@@ -129,7 +208,7 @@ if(btnNewGlobalState) {
     var btnManageGlobalStates = document.getElementById('btn-manage-global-states');
     if(btnManageGlobalStates) {
         btnManageGlobalStates.onclick = () => {
-            if(typeof renderGlobalStatesList === 'function') renderGlobalStatesList();
+            if(typeof renderGlobalStatesList === 'function') renderGlobalStatesTree();
             openModal('modal-global-states');
         };
     }
@@ -146,6 +225,18 @@ if(btnNewGlobalState) {
         };
     }
 
+
+window.changeCurrency = function(amount) {
+    const player = getCurrentPlayer();
+    if(!player) return;
+
+    player.currencyAmount += amount;
+    if(player.currencyAmount < 0) player.currencyAmount = 0; // No permitir moneda negativa
+
+    saveAppState();
+    updateCurrencyDisplay();
+};
+
 // INICIALIZACIÓN Y GUARDADO
 // ==========================================
 
@@ -157,9 +248,16 @@ let isDragging = false;
 let startDragX = 0;
 let startDragY = 0;
 
+let statesTransform = { x: 0, y: 0, scale: 1 };
+
 function initPanZoom() {
-    const viewport = document.getElementById('tree-viewport');
-    const container = document.getElementById('tree-container');
+    setupViewport('tree-viewport', 'tree-container', treeTransform);
+    setupViewport('states-viewport', 'states-tree-container', statesTransform);
+}
+
+function setupViewport(viewportId, containerId, transformObj) {
+    const viewport = document.getElementById(viewportId);
+    const container = document.getElementById(containerId);
     if(!viewport || !container) return;
 
     // Mouse Drag
@@ -167,15 +265,15 @@ function initPanZoom() {
         if(e.button !== 0) return; // Solo click izquierdo
         if(e.target.closest('.node')) return; // No arrastrar si clickeas un nodo
         isDragging = true;
-        startDragX = e.clientX - treeTransform.x;
-        startDragY = e.clientY - treeTransform.y;
+        startDragX = e.clientX - transformObj.x;
+        startDragY = e.clientY - transformObj.y;
     });
 
     window.addEventListener('mousemove', (e) => {
         if(!isDragging) return;
-        treeTransform.x = e.clientX - startDragX;
-        treeTransform.y = e.clientY - startDragY;
-        updateTransform();
+        transformObj.x = e.clientX - startDragX;
+        transformObj.y = e.clientY - startDragY;
+        updateTransform(container, transformObj);
     });
 
     window.addEventListener('mouseup', () => {
@@ -201,11 +299,11 @@ function initPanZoom() {
         e.preventDefault(); // Prevenir scroll nativo
         const deltaX = e.touches[0].clientX - lastTouchX;
         const deltaY = e.touches[0].clientY - lastTouchY;
-        treeTransform.x += deltaX;
-        treeTransform.y += deltaY;
+        transformObj.x += deltaX;
+        transformObj.y += deltaY;
         lastTouchX = e.touches[0].clientX;
         lastTouchY = e.touches[0].clientY;
-        updateTransform();
+        updateTransform(container, transformObj);
     }, {passive: false});
 
     viewport.addEventListener('touchend', () => {
@@ -219,18 +317,17 @@ function initPanZoom() {
         const wheel = e.deltaY < 0 ? 1 : -1;
 
         const zoom = Math.exp(wheel * zoomIntensity);
-        const newScale = treeTransform.scale * zoom;
+        const newScale = transformObj.scale * zoom;
         if(newScale < 0.2 || newScale > 3) return;
 
-        treeTransform.scale = newScale;
-        updateTransform();
+        transformObj.scale = newScale;
+        updateTransform(container, transformObj);
     }, {passive: false});
 }
 
-function updateTransform() {
-    const container = document.getElementById('tree-container');
+function updateTransform(container, transformObj) {
     if(container) {
-        container.style.transform = `translate(${treeTransform.x}px, ${treeTransform.y}px) scale(${treeTransform.scale})`;
+        container.style.transform = `translate(${transformObj.x}px, ${transformObj.y}px) scale(${transformObj.scale})`;
     }
 }
 
@@ -257,28 +354,58 @@ function initGlobalEvents() {
     if (overlay) overlay.addEventListener('click', closeSidebar);
 
     const originalSelectPlayer = window.selectPlayer;
-    window.selectPlayer = function(id) {
-        if(originalSelectPlayer) originalSelectPlayer(id);
-        if (window.innerWidth <= 768) closeSidebar();
-    };
+window.selectPlayer = function(id) {
+    if (!appState || !appState.players) return;
+    appState.currentPlayerId = id;
+    currentPlayer = appState.players.find(p => p.id === id);
+    if (!currentPlayer) return;
+
+    document.querySelectorAll('#players-list li, #npcs-list li').forEach(li => li.classList.remove('active'));
+    const activeLi = document.querySelector(`li[onclick="selectPlayer('${id}')"]`);
+    if (activeLi) activeLi.classList.add('active');
+
+    const contentContainer = document.getElementById('content-container');
+    if(contentContainer) contentContainer.style.display = 'block';
+
+    const characterNameEl = document.getElementById('character-name');
+    const meritDisplayEl = document.getElementById('merit-display');
+    const currencyNameEl = document.getElementById('currency-name-display');
+
+    if (characterNameEl) characterNameEl.textContent = currentPlayer.name;
+    if (meritDisplayEl) meritDisplayEl.textContent = currentPlayer.merit;
+    if (currencyNameEl) currencyNameEl.textContent = currentPlayer.currencyName;
+
+    if (typeof updateHpUI === 'function') updateHpUI();
+    if (typeof renderAttributes === 'function') renderAttributes();
+    if (typeof renderTree === 'function') renderTree();
+    if (typeof renderActiveStates === 'function') renderActiveStates();
+
+    if (typeof updateEditModeUI === 'function') {
+        updateEditModeUI();
+    }
+    if (window.innerWidth <= 768 && typeof closeSidebar === 'function') closeSidebar();
+    if (typeof saveAppState === 'function') saveAppState();
 
     // EVENTOS DEL CATALOGO GLOBAL
     const btnManageGlobalStates = document.getElementById('btn-manage-global-states');
     if(btnManageGlobalStates) {
         btnManageGlobalStates.onclick = () => {
-            if(typeof renderGlobalStatesList === 'function') renderGlobalStatesList();
+            if(typeof renderGlobalStatesList === 'function') renderGlobalStatesTree();
             openModal('modal-global-states');
         };
     }
 
-    const btnNewGlobalState = document.getElementById('btn-new-global-state');
+        const btnNewGlobalState = document.getElementById('btn-new-global-state');
     if(btnNewGlobalState) {
         btnNewGlobalState.onclick = () => {
             editingItem = null;
             document.getElementById('modal-state-title').textContent = "Nuevo Estado Base";
             document.getElementById('input-state-name').value = '';
             document.getElementById('input-state-desc').value = '';
-            closeModal('modal-global-states');
+            document.getElementById('select-state-tier').value = '1';
+
+            populateStateReqSelect(null);
+
             openModal('modal-state');
         };
     }
@@ -313,8 +440,9 @@ function initGlobalEvents() {
     const btnConfirmAssign = document.getElementById('btn-confirm-assign-state');
     if(btnConfirmAssign) {
         btnConfirmAssign.onclick = () => {
-            const player = getCurrentPlayer();
-            const globalId = document.getElementById('select-assign-state').value;
+            const targetPlayerId = document.getElementById('select-assign-player').value;
+            const player = appState.players.find(p => p.id === targetPlayerId);
+            const globalId = document.getElementById('hidden-assign-state-id').value;
             const bodyPart = document.getElementById('select-assign-bodypart') ? document.getElementById('select-assign-bodypart').value : 'general';
 
             if(player && globalId) {
@@ -327,8 +455,13 @@ function initGlobalEvents() {
                     desbloqueado: true
                 });
                 saveAppState();
-                renderStates();
+
+                // Si el jugador al que se le aplicó es el que se está viendo, renderizamos
+                if(player.id === appState.currentPlayerId) {
+                    renderStates();
+                }
                 closeModal('modal-assign-state');
+                alert(`Estado aplicado a ${player.name} en ${bodyPart}`);
             }
         };
     }
@@ -338,7 +471,7 @@ window.deleteGlobalState = function(id) {
     if(confirm("¿Eliminar este estado del catálogo global? Los jugadores que lo tengan asignado perderán la referencia.")){
         appState.globalStates = appState.globalStates.filter(s => s.id !== id);
         saveAppState();
-        renderGlobalStatesList();
+        renderGlobalStatesTree();
         renderStates();
     }
 };
@@ -378,6 +511,7 @@ function loadAppState() {
             appState.players.forEach(p => {
                 if (p.hp === undefined) p.hp = 100;
                 if (p.maxHp === undefined) p.maxHp = 100;
+                if (!p.type) p.type = 'player';
                 if (!p.attributes) {
                     p.attributes = { str:10, dex:10, con:10, int:10, wis:10, cha:10 };
                 }
@@ -404,9 +538,13 @@ function getCurrentPlayer() {
 // ==========================================
 // UI: SIDEBAR Y ESTADO PRINCIPAL
 // ==========================================
+
 function renderSidebar() {
-    const list = document.getElementById('players-list');
-    list.innerHTML = '';
+    const listPlayers = document.getElementById('players-list');
+    const listNpcs = document.getElementById('npcs-list');
+
+    if(listPlayers) listPlayers.innerHTML = '';
+    if(listNpcs) listNpcs.innerHTML = '';
 
     appState.players.forEach(player => {
         const li = document.createElement('li');
@@ -419,7 +557,7 @@ function renderSidebar() {
         const delBtn = document.createElement('button');
         delBtn.className = 'player-delete';
         delBtn.innerHTML = '×';
-        delBtn.title = "Eliminar jugador";
+        delBtn.title = "Eliminar";
         delBtn.onclick = (e) => {
             e.stopPropagation();
             deletePlayer(player.id);
@@ -427,40 +565,15 @@ function renderSidebar() {
 
         li.appendChild(nameSpan);
         li.appendChild(delBtn);
-        list.appendChild(li);
+
+        if(player.type === 'npc' && listNpcs) {
+            listNpcs.appendChild(li);
+        } else if(listPlayers) {
+            listPlayers.appendChild(li);
+        }
     });
 }
 
-window.selectPlayer = function(id) {
-    appState.currentPlayerId = id;
-    saveAppState();
-    renderSidebar();
-
-    const player = getCurrentPlayer();
-    if (player) {
-        document.getElementById('empty-state').style.display = 'none';
-        document.getElementById('currency-container').style.display = 'flex';
-        document.getElementById('tabs-container').style.display = 'flex';
-        document.getElementById('content-container').style.display = 'flex';
-
-        document.getElementById('current-player-name').textContent = player.name;
-        document.getElementById('currency-name').textContent = player.currencyName;
-
-        updateCurrencyDisplay();
-        renderHp();
-        renderAttributes();
-        recalculateUnlockedStates(player);
-        renderTree();
-        renderStates();
-        window.updateEditModeUI();
-
-        if (document.getElementById('tab-rasgos').classList.contains('active')) {
-            setTimeout(drawLines, 50);
-        }
-    } else {
-        showEmptyState();
-    }
-}
 
 function showEmptyState() {
     document.getElementById('empty-state').style.display = 'flex';
@@ -631,7 +744,8 @@ document.getElementById('btn-add-player').onclick = () => {
     editingItem = null;
     document.getElementById('input-player-name').value = '';
     document.getElementById('input-currency-name').value = 'Puntos de Atributo';
-    document.getElementById('modal-player-title').textContent = "Nuevo Jugador";
+    if(document.getElementById('select-player-type')) document.getElementById('select-player-type').value = 'player';
+    document.getElementById('modal-player-title').textContent = "Nuevo Personaje";
     openModal('modal-player');
 };
 document.getElementById('btn-edit-player').onclick = () => {
@@ -640,18 +754,23 @@ document.getElementById('btn-edit-player').onclick = () => {
     editingItem = player;
     document.getElementById('input-player-name').value = player.name;
     document.getElementById('input-currency-name').value = player.currencyName;
-    document.getElementById('modal-player-title').textContent = "Editar Jugador";
+    if(document.getElementById('select-player-type')) document.getElementById('select-player-type').value = player.type || 'player';
+    document.getElementById('modal-player-title').textContent = "Editar Personaje";
     openModal('modal-player');
 };
 document.getElementById('btn-save-player').onclick = () => {
-    const name = document.getElementById('input-player-name').value.trim() || 'Jugador';
+    const name = document.getElementById('input-player-name').value.trim() || 'Personaje';
     const curr = document.getElementById('input-currency-name').value.trim() || 'Moneda';
+    const typeSelect = document.getElementById('select-player-type');
+    const pType = typeSelect ? typeSelect.value : 'player';
 
     if (editingItem && appState.players.find(p => p.id === editingItem.id)) {
         editingItem.name = name;
         editingItem.currencyName = curr;
+        editingItem.type = pType;
     } else {
         const newP = createNewPlayer(name, curr);
+        newP.type = pType;
         appState.players.push(newP);
         appState.currentPlayerId = newP.id;
     }
@@ -689,6 +808,12 @@ document.getElementById('btn-add-trait').onclick = () => {
     document.getElementById('input-trait-req-attr-val').value = '10';
     document.getElementById('btn-delete-trait').style.display = 'none';
 
+    if(document.getElementById('check-trait-unique')) {
+        document.getElementById('check-trait-unique').checked = false;
+        document.getElementById('group-cost2').style.opacity = '1';
+    }
+    if(document.getElementById('check-trait-hidden')) document.getElementById('check-trait-hidden').checked = false;
+
     populateReqSelect(getCurrentPlayer(), null);
     openModal('modal-trait');
 };
@@ -703,6 +828,12 @@ function openModalTrait(trait) {
     document.getElementById('input-trait-cost1').value = costs[0];
     document.getElementById('input-trait-cost2').value = costs[1];
     document.getElementById('select-trait-tier').value = trait.tier || 1;
+
+    if(document.getElementById('check-trait-unique')) {
+        document.getElementById('check-trait-unique').checked = !!trait.isUnique;
+        document.getElementById('group-cost2').style.opacity = trait.isUnique ? '0.3' : '1';
+    }
+    if(document.getElementById('check-trait-hidden')) document.getElementById('check-trait-hidden').checked = !!trait.isHiddenWhenLocked;
 
     populateReqSelect(getCurrentPlayer(), trait.id);
     const reqSelect = document.getElementById('select-trait-req');
@@ -732,6 +863,9 @@ document.getElementById('btn-save-trait').onclick = () => {
     const tier = parseInt(document.getElementById('select-trait-tier').value) || 1;
     const req = document.getElementById('select-trait-req').value;
 
+    const isUnique = document.getElementById('check-trait-unique') ? document.getElementById('check-trait-unique').checked : false;
+    const isHidden = document.getElementById('check-trait-hidden') ? document.getElementById('check-trait-hidden').checked : false;
+
     const reqAttrKey = document.getElementById('select-trait-req-attr').value;
     const reqAttrVal = parseInt(document.getElementById('input-trait-req-attr-val').value) || 1;
     const reqAttrObj = reqAttrKey ? { key: reqAttrKey, val: reqAttrVal } : null;
@@ -743,6 +877,8 @@ document.getElementById('btn-save-trait').onclick = () => {
         editingItem.tier = tier;
         editingItem.requisitos = req ? [req] : [];
         editingItem.reqAttr = reqAttrObj;
+        editingItem.isUnique = isUnique;
+        editingItem.isHiddenWhenLocked = isHidden;
     } else {
         const newTrait = {
             id: 'trait_' + Date.now(),
@@ -752,7 +888,9 @@ document.getElementById('btn-save-trait').onclick = () => {
             costeMerito: [c1, c2],
             requisitos: req ? [req] : [],
             tier: tier,
-            reqAttr: reqAttrObj
+            reqAttr: reqAttrObj,
+            isUnique: isUnique,
+            isHiddenWhenLocked: isHidden
         };
         player.traits.push(newTrait);
     }
@@ -818,13 +956,15 @@ document.addEventListener('DOMContentLoaded', init);
 // RENDER: RASGOS (ÁRBOL)
 // ==========================================
 
-function getLevelSuffix(nivel) {
+function getLevelSuffix(nivel, isUnique) {
+    if(isUnique) return "";
     if (nivel === 1) return "+";
     if (nivel === 2) return "++";
     return "";
 }
 
 function getCurrentCost(item) {
+    if (item.isUnique && item.nivel >= 1) return "MÁXIMO";
     if (item.nivel >= 2) return "MÁXIMO";
     const costArray = item.costeMerito || [0,0];
     const cost = costArray[item.nivel] || 0;
@@ -836,7 +976,8 @@ function handleUpgrade(item, type, elementId) {
     const player = getCurrentPlayer();
     if (!player) return;
 
-    if (!item.desbloqueado || item.nivel >= 2) {
+    const maxLevel = item.isUnique ? 1 : 2;
+    if (!item.desbloqueado || item.nivel >= maxLevel) {
         shakeElement(elementId); return;
     }
 
@@ -902,22 +1043,37 @@ function renderTree() {
             else if (trait.desbloqueado) node.classList.add('unlocked');
             else node.classList.add('locked');
 
-            const name = trait.nombreBase + getLevelSuffix(trait.nivel);
+
+            const name = trait.nombreBase + getLevelSuffix(trait.nivel, trait.isUnique);
             const costText = getCurrentCost(trait);
+            const descHtml = trait.descripcion ? `<div class="state-desc">${trait.descripcion}</div>` : '';
 
             let warningHtml = '';
+
             if (!trait.desbloqueado && trait.reqAttrFailMsg && trait.nivel === 0) {
                 warningHtml = `<div class="req-warning">${trait.reqAttrFailMsg}</div>`;
             }
 
             const badge = `<div class="edit-badge">✎</div>`;
 
-            node.innerHTML = `
-                ${badge}
-                <div class="node-name">${name}</div>
-                <div class="node-cost">${costText}</div>
-                ${warningHtml}
-            `;
+            let isHidden = false;
+            if (trait.isHiddenWhenLocked && !trait.desbloqueado && document.body.dataset.editMode !== 'true') {
+                isHidden = true;
+            }
+
+            if (isHidden) {
+                node.style.visibility = 'hidden';
+            } else {
+                const eyeIcon = (trait.isHiddenWhenLocked && document.body.dataset.editMode === 'true') ? `<div style="position:absolute; top:-10px; left:-10px; background:#444; border-radius:50%; width:24px; height:24px; display:flex; justify-content:center; align-items:center;" title="Rasgo Oculto en Modo Juego">👁️</div>` : '';
+                node.innerHTML = `
+                    ${badge}
+                    ${eyeIcon}
+                    <div class="node-name">${name}</div>
+                    <div class="node-cost">${costText}</div>
+                    ${warningHtml}
+                    ${descHtml}
+                `;
+            }
 
             node.addEventListener('click', () => {
                 if (document.body.dataset.editMode === 'true') openModalTrait(trait);
@@ -1082,6 +1238,11 @@ function drawLines() {
                 const isReqMet = reqTrait && reqTrait.nivel > 0;
                 const isActive = isReqMet && (trait.nivel > 0 || trait.desbloqueado);
 
+                // No dibujar si el nodo objetivo está bajo niebla de guerra
+                if (trait.isHiddenWhenLocked && !trait.desbloqueado && document.body.dataset.editMode !== 'true') {
+                    line.style.display = 'none';
+                }
+
                 line.setAttribute("class", `connection-line ${isActive ? 'active' : 'inactive'}`);
                 line.setAttribute("fill", "none");
                 svg.appendChild(line);
@@ -1091,15 +1252,20 @@ function drawLines() {
 }
 
 
+
 const btnSaveState = document.getElementById('btn-save-state');
 if(btnSaveState) {
     btnSaveState.onclick = () => {
         const name = document.getElementById('input-state-name').value.trim() || 'Nuevo Estado';
         const desc = document.getElementById('input-state-desc').value.trim();
+        const tier = document.getElementById('select-state-tier') ? parseInt(document.getElementById('select-state-tier').value) || 1 : 1;
+        const req = document.getElementById('select-state-req') ? document.getElementById('select-state-req').value : '';
 
         if (editingItem) {
             editingItem.nombreBase = name;
             editingItem.descripcion = desc;
+            editingItem.tier = tier;
+            editingItem.requisitos = req ? [req] : [];
             // Eliminar data vieja si viene heredada
             delete editingItem.costeMerito;
             delete editingItem.reqAttr;
@@ -1107,7 +1273,9 @@ if(btnSaveState) {
             const newState = {
                 id: 'gstate_' + Date.now(),
                 nombreBase: name,
-                descripcion: desc
+                descripcion: desc,
+                tier: tier,
+                requisitos: req ? [req] : []
             };
             if(!appState.globalStates) appState.globalStates = [];
             appState.globalStates.push(newState);
@@ -1115,8 +1283,7 @@ if(btnSaveState) {
 
         saveAppState();
         closeModal('modal-state');
-        if(typeof renderGlobalStatesList === 'function') renderGlobalStatesList();
-        openModal('modal-global-states');
+        if(typeof renderGlobalStatesTree === 'function') renderGlobalStatesTree();
 
         const player = getCurrentPlayer();
         if(player && typeof renderStates === 'function') {
@@ -1124,6 +1291,7 @@ if(btnSaveState) {
         }
     };
 }
+
 
 
 // ==========================================
@@ -1181,3 +1349,82 @@ function setupEventListeners() {
         }
     });
 }
+
+
+function drawStatesLines() {
+    const svg = document.getElementById('states-connections-svg');
+    if (!svg) return;
+    svg.innerHTML = '';
+
+    if (!document.getElementById('tab-estados') || !document.getElementById('tab-estados').classList.contains('active')) return;
+
+    if(!appState.globalStates) return;
+
+    appState.globalStates.forEach(state => {
+        if (state.requisitos && state.requisitos.length > 0) {
+            const targetNode = document.getElementById(`gstate-${state.id}`);
+            if (!targetNode) return;
+
+            state.requisitos.forEach(reqId => {
+                const sourceNode = document.getElementById(`gstate-${reqId}`);
+                if (!sourceNode) return;
+
+                const sourceRect = sourceNode.getBoundingClientRect();
+                const targetRect = targetNode.getBoundingClientRect();
+                const svgRect = svg.getBoundingClientRect();
+
+                const scale = typeof statesTransform !== 'undefined' ? statesTransform.scale : 1;
+                const startX = (sourceRect.left + sourceRect.width / 2 - svgRect.left) / scale;
+                const startY = (sourceRect.bottom - svgRect.top) / scale;
+                const endX = (targetRect.left + targetRect.width / 2 - svgRect.left) / scale;
+                const endY = (targetRect.top - svgRect.top) / scale;
+
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                const pathData = `M ${startX} ${startY} C ${startX} ${startY + 40}, ${endX} ${endY - 40}, ${endX} ${endY}`;
+                line.setAttribute("d", pathData);
+
+                // Las conexiones de plantillas globales siempre son grises (inactivas/base) visualmente
+                line.setAttribute("class", `connection-line inactive`);
+                line.setAttribute("fill", "none");
+                svg.appendChild(line);
+            });
+        }
+    });
+}
+
+
+function populateStateReqSelect(currentStateId) {
+    const select = document.getElementById('select-state-req');
+    if(!select) return;
+    select.innerHTML = '<option value="">Ninguno</option>';
+    if (!appState.globalStates) return;
+
+    appState.globalStates.forEach(s => {
+        if (s.id !== currentStateId) {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.nombreBase;
+            select.appendChild(opt);
+        }
+    });
+}
+
+window.openAssignModal = function(globalStateId) {
+    document.getElementById('hidden-assign-state-id').value = globalStateId;
+    const selectPlayer = document.getElementById('select-assign-player');
+    selectPlayer.innerHTML = '';
+
+    if(appState.players.length === 0) {
+        selectPlayer.innerHTML = '<option value="">No hay jugadores creados.</option>';
+        document.getElementById('btn-confirm-assign-state').disabled = true;
+    } else {
+        document.getElementById('btn-confirm-assign-state').disabled = false;
+        appState.players.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.name;
+            selectPlayer.appendChild(opt);
+        });
+    }
+    openModal('modal-assign-state');
+};
