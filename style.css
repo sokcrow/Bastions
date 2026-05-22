@@ -1,0 +1,180 @@
+/* Variables de color y diseño */
+:root {
+    --bg-color: #1a1a1a;
+    --text-color: #e0e0e0;
+    --border-color: #555;
+    --border-locked: rgba(255, 50, 50, 0.4);
+    --border-unlocked: #888;
+    --border-hover: #d4af37; /* Dorado */
+    --border-max: #00ffff; /* Cian o dorado brillante para el nivel máximo */
+    --bg-node: #2a2a2a;
+    --bg-header: #222;
+    --merit-color: #ffd700;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header */
+.header {
+    background-color: var(--bg-header);
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--border-color);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    z-index: 10;
+}
+
+.merit-display {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+#merit-count {
+    color: var(--merit-color);
+}
+
+.header-controls {
+    display: flex;
+    gap: 15px;
+}
+
+.btn {
+    background-color: #333;
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    background-color: #444;
+    border-color: var(--border-hover);
+}
+
+.btn-danger {
+    background-color: rgba(200, 50, 50, 0.2);
+    border-color: rgba(200, 50, 50, 0.5);
+}
+
+.btn-danger:hover {
+    background-color: rgba(200, 50, 50, 0.4);
+    border-color: rgba(255, 50, 50, 0.8);
+}
+
+/* Tree Container */
+.tree-container {
+    position: relative;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 50px;
+    overflow: auto;
+}
+
+#connections-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none; /* Que no intercepte clics */
+}
+
+/* Nodos */
+#nodes-container {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 80px; /* Separación vertical entre niveles */
+}
+
+.tier {
+    display: flex;
+    justify-content: center;
+    gap: 60px; /* Separación horizontal entre nodos */
+}
+
+.node {
+    background-color: var(--bg-node);
+    border: 2px solid var(--border-unlocked);
+    border-radius: 8px;
+    padding: 15px;
+    width: 150px;
+    text-align: center;
+    position: relative;
+    transition: all 0.3s ease;
+    user-select: none;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+}
+
+.node-name {
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.node-cost {
+    font-size: 0.9rem;
+    color: #aaa;
+}
+
+/* Estados de los Nodos */
+.node.locked {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: var(--border-locked);
+}
+
+.node.unlocked {
+    cursor: pointer;
+    border-color: var(--border-unlocked);
+}
+
+.node.unlocked:hover {
+    border-color: var(--border-hover);
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.5);
+    transform: translateY(-2px);
+}
+
+.node.maxed {
+    cursor: default;
+    border-color: var(--border-hover);
+    box-shadow: 0 0 10px var(--border-hover) inset, 0 0 10px var(--border-hover);
+}
+
+.node.maxed:hover {
+    transform: none;
+}
+
+/* SVG Lineas */
+.connection-line {
+    stroke-width: 3;
+    transition: stroke 0.3s ease;
+}
+
+.connection-line.inactive {
+    stroke: #444;
+    stroke-dasharray: 5, 5;
+}
+
+.connection-line.active {
+    stroke: var(--border-hover);
+}

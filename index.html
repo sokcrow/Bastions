@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Árbol de Habilidades y Estados</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="header">
+        <div class="merit-display">
+            Mérito: <span id="merit-count">0</span>
+        </div>
+        <div class="header-controls">
+            <button id="add-merit-btn" class="btn">Añadir Mérito (+10)</button>
+            <button id="reset-btn" class="btn btn-danger">Reiniciar Progreso</button>
+        </div>
+    </header>
+
+    <main class="tree-container">
+        <!-- SVG para las líneas conectoras -->
+        <svg id="connections-svg"></svg>
+
+        <!-- Contenedor donde se generarán los nodos del árbol dinámicamente -->
+        <div id="nodes-container"></div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
