@@ -706,7 +706,7 @@ document.getElementById('btn-delete-trait').onclick = () => {
 };
 
 // Modal Estados
-document.getElementById('btn-add-state').onclick = () => {
+const btnAddStateOld = document.getElementById('btn-add-state'); if(btnAddStateOld) btnAddStateOld.onclick = () => {
     editingItem = null;
     document.getElementById('modal-state-title').textContent = "Nuevo Estado";
     document.getElementById('input-state-name').value = '';
@@ -902,7 +902,7 @@ document.getElementById('btn-save-state').onclick = () => {
 // ==========================================
 // ASIGNAR ESTADO AL JUGADOR
 // ==========================================
-const btnAssignState = document.getElementById('btn-add-state-to-player');
+var btnAssignState = document.getElementById('btn-add-state-to-player');
 if(btnAssignState) {
     btnAssignState.onclick = () => {
         const select = document.getElementById('select-assign-state');
@@ -932,7 +932,7 @@ if(btnAssignState) {
     };
 }
 
-const btnConfirmAssign = document.getElementById('btn-confirm-assign-state');
+var btnConfirmAssign = document.getElementById('btn-confirm-assign-state');
 if(btnConfirmAssign) {
     btnConfirmAssign.onclick = () => {
         const player = getCurrentPlayer();
@@ -951,3 +951,269 @@ if(btnConfirmAssign) {
         }
     };
 }
+
+
+// ==========================================
+// PAN & ZOOM (Cámara Libre)
+// ==========================================
+let treeTransform = { x: 0, y: 0, scale: 1 };
+let isDragging = false;
+let startDragX = 0;
+let startDragY = 0;
+
+function initPanZoom() {
+    const viewport = document.getElementById('tree-viewport');
+    const container = document.getElementById('tree-container');
+    if(!viewport || !container) return;
+
+    // Mouse Drag
+    viewport.addEventListener('mousedown', (e) => {
+        if(e.button !== 0) return; // Solo click izquierdo
+        if(e.target.closest('.node')) return; // No arrastrar si clickeas un nodo
+        isDragging = true;
+        startDragX = e.clientX - treeTransform.x;
+        startDragY = e.clientY - treeTransform.y;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if(!isDragging) return;
+        treeTransform.x = e.clientX - startDragX;
+        treeTransform.y = e.clientY - startDragY;
+        updateTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+
+    // Touch Drag (Mobile)
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+
+    viewport.addEventListener('touchstart', (e) => {
+        if(e.touches.length === 1) {
+            if(e.target.closest('.node')) return;
+            isDragging = true;
+            lastTouchX = e.touches[0].clientX;
+            lastTouchY = e.touches[0].clientY;
+        }
+    });
+
+    viewport.addEventListener('touchmove', (e) => {
+        if(!isDragging || e.touches.length !== 1) return;
+        e.preventDefault(); // Prevenir scroll nativo
+        const deltaX = e.touches[0].clientX - lastTouchX;
+        const deltaY = e.touches[0].clientY - lastTouchY;
+        treeTransform.x += deltaX;
+        treeTransform.y += deltaY;
+        lastTouchX = e.touches[0].clientX;
+        lastTouchY = e.touches[0].clientY;
+        updateTransform();
+    }, {passive: false});
+
+    viewport.addEventListener('touchend', () => {
+        isDragging = false;
+    });
+
+    // Mouse Wheel Zoom
+    viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const zoomIntensity = 0.1;
+        const wheel = e.deltaY < 0 ? 1 : -1;
+
+        const rect = viewport.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left - (rect.width/2);
+        const mouseY = e.clientY - rect.top - (rect.height/2);
+
+        const zoom = Math.exp(wheel * zoomIntensity);
+        const newScale = treeTransform.scale * zoom;
+        if(newScale < 0.2 || newScale > 3) return;
+
+        treeTransform.x -= mouseX / treeTransform.scale * (newScale - treeTransform.scale);
+        treeTransform.y -= mouseY / treeTransform.scale * (newScale - treeTransform.scale);
+        treeTransform.scale = newScale;
+
+        updateTransform();
+    }, {passive: false});
+}
+
+function updateTransform() {
+    const container = document.getElementById('tree-container');
+    if(container) {
+        container.style.transform = `translate(${treeTransform.x}px, ${treeTransform.y}px) scale(${treeTransform.scale})`;
+    }
+}
+
+
+// ==========================================
+// CATÁLOGO GLOBAL DE ESTADOS
+// ==========================================
+document.getElementById('btn-manage-global-states').onclick = () => {
+    renderGlobalStatesList();
+    openModal('modal-global-states');
+};
+
+function renderGlobalStatesList() {
+    const list = document.getElementById('global-states-list');
+    if(!list) return;
+    list.innerHTML = '';
+    if(!appState.globalStates || appState.globalStates.length === 0) {
+        list.innerHTML = '<p class="text-muted">No hay estados base definidos.</p>';
+        return;
+    }
+    appState.globalStates.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'global-state-item';
+        div.innerHTML = `
+            <div><strong>${s.nombreBase}</strong></div>
+            <div>
+                <button class="btn btn-small" onclick="editGlobalState('${s.id}')">Editar</button>
+                <button class="btn btn-small btn-danger" onclick="deleteGlobalState('${s.id}')">X</button>
+            </div>
+        `;
+        list.appendChild(div);
+    });
+}
+
+document.getElementById('btn-new-global-state').onclick = () => {
+    editingItem = null;
+    document.getElementById('modal-state-title').textContent = "Nuevo Estado Base";
+    document.getElementById('input-state-name').value = '';
+    document.getElementById('input-state-desc').value = '';
+    document.getElementById('input-state-cost1').value = '10';
+    document.getElementById('input-state-cost2').value = '20';
+    document.getElementById('select-state-req-attr').value = '';
+    document.getElementById('input-state-req-attr-val').value = '10';
+    closeModal('modal-global-states');
+    openModal('modal-state');
+};
+
+window.editGlobalState = function(id) {
+    const estado = appState.globalStates.find(s => s.id === id);
+    if(!estado) return;
+    editingItem = estado;
+    document.getElementById('modal-state-title').textContent = "Editar Estado Base";
+    document.getElementById('input-state-name').value = estado.nombreBase;
+    document.getElementById('input-state-desc').value = estado.descripcion || '';
+
+    const costs = estado.costeMerito || [10,20];
+    document.getElementById('input-state-cost1').value = costs[0];
+    document.getElementById('input-state-cost2').value = costs[1];
+
+    if (estado.reqAttr) {
+        document.getElementById('select-state-req-attr').value = estado.reqAttr.key || '';
+        document.getElementById('input-state-req-attr-val').value = estado.reqAttr.val || 10;
+    } else {
+        document.getElementById('select-state-req-attr').value = '';
+        document.getElementById('input-state-req-attr-val').value = 10;
+    }
+
+    closeModal('modal-global-states');
+    openModal('modal-state');
+};
+
+window.deleteGlobalState = function(id) {
+    if(confirm("¿Eliminar este estado del catálogo global? Los jugadores que lo tengan asignado perderán la referencia.")){
+        appState.globalStates = appState.globalStates.filter(s => s.id !== id);
+        saveAppState();
+        renderGlobalStatesList();
+        renderStates();
+    }
+};
+
+var btnSaveState = document.getElementById('btn-save-state');
+if(btnSaveState) {
+    btnSaveState.onclick = () => {
+        const name = document.getElementById('input-state-name').value.trim() || 'Nuevo Estado';
+        const desc = document.getElementById('input-state-desc').value.trim();
+        const c1 = parseInt(document.getElementById('input-state-cost1').value) || 0;
+        const c2 = parseInt(document.getElementById('input-state-cost2').value) || 0;
+
+        const reqAttrKey = document.getElementById('select-state-req-attr').value;
+        const reqAttrVal = parseInt(document.getElementById('input-state-req-attr-val').value) || 1;
+        const reqAttrObj = reqAttrKey ? { key: reqAttrKey, val: reqAttrVal } : null;
+
+        if (editingItem) {
+            editingItem.nombreBase = name;
+            editingItem.descripcion = desc;
+            editingItem.costeMerito = [c1, c2];
+            editingItem.reqAttr = reqAttrObj;
+        } else {
+            const newState = {
+                id: 'gstate_' + Date.now(),
+                nombreBase: name,
+                descripcion: desc,
+                costeMerito: [c1, c2],
+                reqAttr: reqAttrObj
+            };
+            if(!appState.globalStates) appState.globalStates = [];
+            appState.globalStates.push(newState);
+        }
+
+        saveAppState();
+        closeModal('modal-state');
+        renderGlobalStatesList();
+        openModal('modal-global-states');
+
+        const player = getCurrentPlayer();
+        if(player) {
+            recalculateUnlockedStates(player);
+            renderStates();
+        }
+    };
+}
+
+// ==========================================
+// ASIGNAR ESTADO AL JUGADOR
+// ==========================================
+var btnAssignState = document.getElementById('btn-add-state-to-player');
+if(btnAssignState) {
+    btnAssignState.onclick = () => {
+        const select = document.getElementById('select-assign-state');
+        select.innerHTML = '';
+        const player = getCurrentPlayer();
+
+        if(!appState.globalStates) appState.globalStates = [];
+        const available = appState.globalStates.filter(gs => {
+            if(!player.activeStates) player.activeStates = [];
+            return !player.activeStates.some(ast => ast.globalId === gs.id);
+        });
+
+        if(available.length === 0) {
+            select.innerHTML = '<option value="">No hay estados disponibles para asignar.</option>';
+            document.getElementById('btn-confirm-assign-state').disabled = true;
+        } else {
+            document.getElementById('btn-confirm-assign-state').disabled = false;
+            available.forEach(gs => {
+                const opt = document.createElement('option');
+                opt.value = gs.id;
+                opt.textContent = gs.nombreBase;
+                select.appendChild(opt);
+            });
+        }
+        openModal('modal-assign-state');
+    };
+}
+
+var btnConfirmAssign = document.getElementById('btn-confirm-assign-state');
+if(btnConfirmAssign) {
+    btnConfirmAssign.onclick = () => {
+        const player = getCurrentPlayer();
+        const globalId = document.getElementById('select-assign-state').value;
+        if(player && globalId) {
+            if(!player.activeStates) player.activeStates = [];
+            player.activeStates.push({
+                id: 'astate_' + Date.now(),
+                globalId: globalId,
+                nivel: 0,
+                desbloqueado: true
+            });
+            recalculateUnlockedStates(player);
+            saveAppState();
+            renderStates();
+            closeModal('modal-assign-state');
+        }
+    };
+}
+
+document.addEventListener('DOMContentLoaded', init);
