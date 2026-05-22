@@ -3,45 +3,178 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Árbol de Habilidades y Estados</title>
+    <title>Administrador de Árboles de Habilidades</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header class="header">
-        <div class="merit-display">
-            Mérito: <span id="merit-count">0</span>
-        </div>
-        <div class="header-controls">
-            <button id="add-merit-btn" class="btn">Añadir Mérito (+10)</button>
-            <button id="reset-btn" class="btn btn-danger">Reiniciar Progreso</button>
-        </div>
-    </header>
-
-    <!-- Sistema de navegación por pestañas -->
-    <nav class="tabs-nav">
-        <button class="tab-btn active" data-target="tab-rasgos">Rasgos</button>
-        <button class="tab-btn" data-target="tab-estados">Estados</button>
-    </nav>
-
-    <main class="main-content">
-        <!-- Pestaña: Rasgos (Árbol de Habilidades) -->
-        <section id="tab-rasgos" class="tab-content active">
-            <div class="tree-container">
-                <!-- SVG para las líneas conectoras -->
-                <svg id="connections-svg"></svg>
-
-                <!-- Contenedor donde se generarán los nodos del árbol dinámicamente -->
-                <div id="nodes-container"></div>
+    <div class="app-layout">
+        <!-- Barra Lateral -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Jugadores</h2>
+                <button id="btn-add-player" class="btn btn-small">+ Añadir</button>
             </div>
-        </section>
+            <ul id="players-list" class="players-list">
+                <!-- Lista de jugadores generada dinámicamente -->
+            </ul>
+        </aside>
 
-        <!-- Pestaña: Estados -->
-        <section id="tab-estados" class="tab-content">
-            <div class="states-container" id="states-container">
-                <!-- Los estados se inyectarán aquí -->
+        <!-- Contenido Principal -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="player-info">
+                    <h2 id="current-player-name">Selecciona un Jugador</h2>
+                    <div class="currency-display" id="currency-container" style="display: none;">
+                        <span id="currency-name">Moneda</span>: <span id="currency-count">0</span>
+                        <button id="btn-add-currency" class="btn btn-small btn-icon">+10</button>
+                        <button id="btn-edit-player" class="btn btn-small btn-icon" title="Configurar Jugador">⚙️</button>
+                    </div>
+                </div>
+
+                <div class="header-controls">
+                    <div class="toggle-mode">
+                        <label class="switch">
+                            <input type="checkbox" id="mode-toggle">
+                            <span class="slider round"></span>
+                        </label>
+                        <span id="mode-label">Modo Juego</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Sistema de navegación por pestañas -->
+            <nav class="tabs-nav" id="tabs-container" style="display: none;">
+                <button class="tab-btn active" data-target="tab-rasgos">Rasgos (Árbol)</button>
+                <button class="tab-btn" data-target="tab-estados">Estados</button>
+            </nav>
+
+            <div class="main-content" id="content-container" style="display: none;">
+                <!-- Pestaña: Rasgos (Árbol de Habilidades) -->
+                <section id="tab-rasgos" class="tab-content active">
+                    <div class="admin-toolbar" id="toolbar-rasgos" style="display: none;">
+                        <button id="btn-add-trait" class="btn btn-primary">+ Añadir Nuevo Rasgo</button>
+                    </div>
+                    <div class="tree-container">
+                        <!-- SVG para las líneas conectoras -->
+                        <svg id="connections-svg"></svg>
+
+                        <!-- Contenedor donde se generarán los nodos del árbol dinámicamente -->
+                        <div id="nodes-container"></div>
+                    </div>
+                </section>
+
+                <!-- Pestaña: Estados -->
+                <section id="tab-estados" class="tab-content">
+                    <div class="admin-toolbar" id="toolbar-estados" style="display: none;">
+                        <button id="btn-add-state" class="btn btn-primary">+ Añadir Nuevo Estado</button>
+                    </div>
+                    <div class="states-container" id="states-container">
+                        <!-- Los estados se inyectarán aquí -->
+                    </div>
+                </section>
             </div>
-        </section>
-    </main>
+
+            <!-- Estado vacío (cuando no hay jugador seleccionado o creado) -->
+            <div id="empty-state" class="empty-state">
+                <p>Crea o selecciona un jugador en la barra lateral para comenzar.</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modales (Popups) -->
+
+    <!-- Modal: Configurar Jugador -->
+    <div id="modal-player" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-player-title">Configurar Jugador</h3>
+            <div class="form-group">
+                <label for="input-player-name">Nombre del Jugador:</label>
+                <input type="text" id="input-player-name" placeholder="Ej. Arthur">
+            </div>
+            <div class="form-group">
+                <label for="input-currency-name">Nombre de su Moneda/Puntuación:</label>
+                <input type="text" id="input-currency-name" placeholder="Ej. Mérito, Puntos de Atributo">
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal('modal-player')">Cancelar</button>
+                <button id="btn-save-player" class="btn btn-primary">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Añadir/Editar Rasgo -->
+    <div id="modal-trait" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-trait-title">Rasgo</h3>
+            <div class="form-group">
+                <label for="input-trait-name">Nombre Base:</label>
+                <input type="text" id="input-trait-name" placeholder="Ej. Fuerza Vital">
+            </div>
+            <div class="form-group">
+                <label for="input-trait-desc">Descripción / Escalado (Opcional):</label>
+                <textarea id="input-trait-desc" rows="3" placeholder="Ej. Escala con Constitución..."></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group half">
+                    <label for="input-trait-cost1">Costo para Nivel 1 (+):</label>
+                    <input type="number" id="input-trait-cost1" value="10" min="0">
+                </div>
+                <div class="form-group half">
+                    <label for="input-trait-cost2">Costo para Nivel 2 (++):</label>
+                    <input type="number" id="input-trait-cost2" value="20" min="0">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group half">
+                    <label for="select-trait-tier">Nivel de Profundidad (Tier):</label>
+                    <input type="number" id="select-trait-tier" value="1" min="1" title="1 es arriba, 2 más abajo, etc.">
+                </div>
+                <div class="form-group half">
+                    <label for="select-trait-req">Requiere del Rasgo (Padre):</label>
+                    <select id="select-trait-req">
+                        <option value="">Ninguno (Nodo Raíz)</option>
+                        <!-- Opciones dinámicas -->
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="btn-delete-trait" class="btn btn-danger" style="display:none; margin-right:auto;">Eliminar</button>
+                <button class="btn" onclick="closeModal('modal-trait')">Cancelar</button>
+                <button id="btn-save-trait" class="btn btn-primary">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Añadir/Editar Estado -->
+    <div id="modal-state" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-state-title">Estado</h3>
+            <div class="form-group">
+                <label for="input-state-name">Nombre Base:</label>
+                <input type="text" id="input-state-name" placeholder="Ej. Fuerza Bruta">
+            </div>
+            <div class="form-group">
+                <label for="input-state-desc">Descripción / Efecto / Escalado:</label>
+                <textarea id="input-state-desc" rows="3" placeholder="Ej. Aumenta el daño físico base en 5."></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group half">
+                    <label for="input-state-cost1">Costo para Nivel 1 (+):</label>
+                    <input type="number" id="input-state-cost1" value="10" min="0">
+                </div>
+                <div class="form-group half">
+                    <label for="input-state-cost2">Costo para Nivel 2 (++):</label>
+                    <input type="number" id="input-state-cost2" value="20" min="0">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="btn-delete-state" class="btn btn-danger" style="display:none; margin-right:auto;">Eliminar</button>
+                <button class="btn" onclick="closeModal('modal-state')">Cancelar</button>
+                <button id="btn-save-state" class="btn btn-primary">Guardar</button>
+            </div>
+        </div>
+    </div>
 
     <script src="script.js"></script>
 </body>
