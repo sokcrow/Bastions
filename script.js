@@ -1,60 +1,44 @@
-// Estado Inicial
+// Plantilla base para el usuario
 const defaultState = {
     merit: 0,
+    // Aquí puedes añadir todos los Rasgos de tu árbol de habilidades
     traits: [
         {
-            id: 'vitality',
-            nombreBase: 'Fuerza Vital',
-            nivel: 0,
-            costeMerito: [10, 25],
-            desbloqueado: true,
-            requisitos: [],
-            tier: 1 // Usado para agrupar visualmente en la interfaz
+            id: 'nodo_raiz_ejemplo', // ID único
+            nombreBase: 'Rasgo Inicial', // Nombre que se mostrará
+            nivel: 0, // Inicia en 0
+            costeMerito: [10, 25], // [Costo para +, Costo para ++]
+            desbloqueado: true, // true si es la raíz o si no tiene requisitos
+            requisitos: [], // IDs de los rasgos padres necesarios
+            tier: 1 // Nivel de profundidad visual en el árbol (1 es arriba)
         },
         {
-            id: 'strength',
-            nombreBase: 'Poder Físico',
+            id: 'nodo_hijo_ejemplo',
+            nombreBase: 'Rasgo Secundario',
             nivel: 0,
             costeMerito: [15, 30],
-            desbloqueado: false,
-            requisitos: ['vitality'],
+            desbloqueado: false, // Inicia false si depende de otro
+            requisitos: ['nodo_raiz_ejemplo'], // ID del nodo del que depende
             tier: 2
+        }
+    ],
+    // Aquí puedes añadir todos los Estados independientes del personaje
+    estados: [
+        {
+            id: 'estado_fuerza', // ID único
+            nombreBase: 'Fuerza Bruta',
+            descripcion: 'Aumenta el daño físico base.',
+            nivel: 0,
+            costeMerito: [20, 40], // [Costo para +, Costo para ++]
+            desbloqueado: true // Los estados suelen estar disponibles desde el inicio, pon false si requieres lógica especial
         },
         {
-            id: 'agility',
-            nombreBase: 'Agilidad',
+            id: 'estado_resistencia',
+            nombreBase: 'Resistencia al Dolor',
+            descripcion: 'Reduce el daño recibido en un 5%.',
             nivel: 0,
-            costeMerito: [15, 30],
-            desbloqueado: false,
-            requisitos: ['vitality'],
-            tier: 2
-        },
-        {
-            id: 'reflexes',
-            nombreBase: 'Reflejos Mejorados',
-            nivel: 0,
-            costeMerito: [20, 40],
-            desbloqueado: false,
-            requisitos: ['agility'],
-            tier: 3
-        },
-        {
-            id: 'titan',
-            nombreBase: 'Cuerpo de Titán',
-            nivel: 0,
-            costeMerito: [30, 50],
-            desbloqueado: false,
-            requisitos: ['strength', 'vitality'], // Requiere nivel en ambos
-            tier: 3
-        },
-        {
-            id: 'mastery',
-            nombreBase: 'Maestría Total',
-            nivel: 0,
-            costeMerito: [50, 100],
-            desbloqueado: false,
-            requisitos: ['reflexes', 'titan'],
-            tier: 4
+            costeMerito: [15, 35],
+            desbloqueado: true
         }
     ]
 };
@@ -65,11 +49,14 @@ let gameState = null;
 function init() {
     loadGameState();
     renderTree();
+    renderStates();
     updateMeritDisplay();
     setupEventListeners();
 
-    // Pequeño retardo para asegurar que los nodos estén renderizados antes de dibujar las líneas
-    setTimeout(drawLines, 50);
+    // Dibujar líneas si la pestaña de rasgos está activa
+    if (document.getElementById('tab-rasgos').classList.contains('active')) {
+        setTimeout(drawLines, 50);
+    }
 }
 
 // Cargar estado de localStorage
@@ -82,7 +69,7 @@ function loadGameState() {
         gameState = JSON.parse(JSON.stringify(defaultState));
     }
 
-    // Recalcular estado de desbloqueo basado en los requisitos
+    // Recalcular estado de desbloqueo basado en los requisitos (solo para rasgos)
     recalculateUnlockedStates();
 }
 
@@ -91,7 +78,7 @@ function saveGameState() {
     localStorage.setItem('skillTreeState', JSON.stringify(gameState));
 }
 
-// Actualizar estados "desbloqueado" según los requisitos
+// Actualizar estados "desbloqueado" según los requisitos en Rasgos
 function recalculateUnlockedStates() {
     gameState.traits.forEach(trait => {
         if (trait.requisitos.length === 0) {
@@ -114,13 +101,15 @@ function getLevelSuffix(nivel) {
     return "";
 }
 
-// Obtener coste actual
-function getCurrentCost(trait) {
-    if (trait.nivel >= 2) return "MÁXIMO";
-    return trait.costeMerito[trait.nivel] + " Mérito";
+// Obtener texto de coste
+function getCurrentCost(item) {
+    if (item.nivel >= 2) return "MÁXIMO";
+    return item.costeMerito[item.nivel] + " Mérito";
 }
 
-// Renderizar el árbol
+// ==========================================
+// RENDERIZADO DE RASGOS (ÁRBOL)
+// ==========================================
 function renderTree() {
     const container = document.getElementById('nodes-container');
     container.innerHTML = '';
@@ -145,7 +134,6 @@ function renderTree() {
             const node = document.createElement('div');
             node.className = 'node';
             node.id = `node-${trait.id}`;
-            node.dataset.id = trait.id;
 
             // Clases de estado
             if (trait.nivel === 2) {
@@ -165,7 +153,7 @@ function renderTree() {
             `;
 
             // Evento click
-            node.addEventListener('click', () => handleNodeClick(trait.id));
+            node.addEventListener('click', () => handleUpgrade(trait, 'trait'));
 
             tierDiv.appendChild(node);
         });
@@ -174,24 +162,61 @@ function renderTree() {
     });
 }
 
-// Manejar clic en un nodo
-function handleNodeClick(traitId) {
-    const trait = gameState.traits.find(t => t.id === traitId);
+// ==========================================
+// RENDERIZADO DE ESTADOS (CUADRÍCULA)
+// ==========================================
+function renderStates() {
+    const container = document.getElementById('states-container');
+    container.innerHTML = '';
 
-    if (!trait) return;
-
-    // Si no está desbloqueado, no se puede interactuar
-    if (!trait.desbloqueado) {
-        // Podríamos mostrar un mensaje de error si se desea
+    // Si no hay estados definidos
+    if (!gameState.estados || gameState.estados.length === 0) {
+        container.innerHTML = '<p style="color:#aaa;">No hay estados definidos aún.</p>';
         return;
     }
 
-    // Si ya está al máximo
-    if (trait.nivel >= 2) {
+    gameState.estados.forEach(estado => {
+        const card = document.createElement('div');
+        card.className = 'state-card';
+        card.id = `state-${estado.id}`;
+
+        // Clases de estado
+        if (estado.nivel === 2) {
+            card.classList.add('maxed');
+        } else if (estado.desbloqueado) {
+            card.classList.add('unlocked');
+        } else {
+            card.classList.add('locked');
+        }
+
+        const name = estado.nombreBase + getLevelSuffix(estado.nivel);
+        const costText = getCurrentCost(estado);
+        const descText = estado.descripcion || '';
+
+        card.innerHTML = `
+            <div class="state-name">${name}</div>
+            <div class="state-cost">${costText}</div>
+            ${descText ? `<div class="state-desc">${descText}</div>` : ''}
+        `;
+
+        // Evento click
+        card.addEventListener('click', () => handleUpgrade(estado, 'state'));
+
+        container.appendChild(card);
+    });
+}
+
+// ==========================================
+// LÓGICA DE MEJORA UNIFICADA
+// ==========================================
+function handleUpgrade(item, type) {
+    // Si no está desbloqueado o ya está al máximo
+    if (!item.desbloqueado || item.nivel >= 2) {
+        shakeElement(type === 'trait' ? `node-${item.id}` : `state-${item.id}`);
         return;
     }
 
-    const cost = trait.costeMerito[trait.nivel];
+    const cost = item.costeMerito[item.nivel];
 
     // Verificar si hay mérito suficiente
     if (gameState.merit >= cost) {
@@ -199,28 +224,35 @@ function handleNodeClick(traitId) {
         gameState.merit -= cost;
 
         // Subir nivel
-        trait.nivel++;
+        item.nivel++;
 
-        // Recalcular qué habilidades se han desbloqueado
-        recalculateUnlockedStates();
-
-        // Guardar progreso
-        saveGameState();
-
-        // Actualizar interfaz
-        updateMeritDisplay();
-        renderTree();
-
-        // Pequeño retardo para redibujar las líneas después del render
-        setTimeout(drawLines, 50);
-    } else {
-        // Efecto visual de no poder comprar (opcional)
-        const nodeEl = document.getElementById(`node-${trait.id}`);
-        if (nodeEl) {
-            nodeEl.style.transform = "translateX(-5px)";
-            setTimeout(() => nodeEl.style.transform = "translateX(5px)", 100);
-            setTimeout(() => nodeEl.style.transform = "translateX(0)", 200);
+        if (type === 'trait') {
+            recalculateUnlockedStates();
+            renderTree();
+            // Redibujar líneas si estamos en la pestaña de rasgos
+            if (document.getElementById('tab-rasgos').classList.contains('active')) {
+                setTimeout(drawLines, 50);
+            }
+        } else {
+            renderStates();
         }
+
+        saveGameState();
+        updateMeritDisplay();
+
+    } else {
+        // Efecto visual de no poder comprar por falta de fondos
+        shakeElement(type === 'trait' ? `node-${item.id}` : `state-${item.id}`);
+    }
+}
+
+// Efecto visual cuando no se puede interactuar/comprar
+function shakeElement(elementId) {
+    const el = document.getElementById(elementId);
+    if (el) {
+        el.style.transform = "translateX(-5px)";
+        setTimeout(() => el.style.transform = "translateX(5px)", 100);
+        setTimeout(() => el.style.transform = "translateX(0)", 200);
     }
 }
 
@@ -229,31 +261,17 @@ function updateMeritDisplay() {
     document.getElementById('merit-count').textContent = gameState.merit;
 }
 
-// Configurar otros event listeners
-function setupEventListeners() {
-    // Botón añadir mérito
-    document.getElementById('add-merit-btn').addEventListener('click', () => {
-        gameState.merit += 10;
-        saveGameState();
-        updateMeritDisplay();
-    });
-
-    // Botón reiniciar progreso
-    document.getElementById('reset-btn').addEventListener('click', () => {
-        if(confirm("¿Estás seguro de que deseas reiniciar todo el progreso?")) {
-            localStorage.removeItem('skillTreeState');
-            location.reload();
-        }
-    });
-
-    // Resize para redibujar las líneas
-    window.addEventListener('resize', drawLines);
-}
-
-// Dibujar líneas conectoras
+// ==========================================
+// DIBUJO DE LÍNEAS SVG (Solo Rasgos)
+// ==========================================
 function drawLines() {
     const svg = document.getElementById('connections-svg');
+    if (!svg) return;
+
     svg.innerHTML = ''; // Limpiar líneas anteriores
+
+    // Solo dibujar si la pestaña está visible (para que los cálculos de boundingRect sean correctos)
+    if (!document.getElementById('tab-rasgos').classList.contains('active')) return;
 
     gameState.traits.forEach(trait => {
         if (trait.requisitos && trait.requisitos.length > 0) {
@@ -280,8 +298,7 @@ function drawLines() {
                 // Crear línea
                 const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
 
-                // Usar una curva de bezier cúbica para que sea más elegante
-                // M = move to (inicio), C = bezier curve (control1, control2, fin)
+                // Curva de bezier cúbica
                 const pathData = `M ${startX} ${startY} C ${startX} ${startY + 40}, ${endX} ${endY - 40}, ${endX} ${endY}`;
                 line.setAttribute("d", pathData);
 
@@ -289,7 +306,6 @@ function drawLines() {
                 const reqTrait = gameState.traits.find(t => t.id === reqId);
                 const isReqMet = reqTrait && reqTrait.nivel > 0;
 
-                // Una línea es "activa" si el requisito está cumplido y el nodo destino está desbloqueado o ya tiene nivel
                 const isActive = isReqMet && (trait.desbloqueado || trait.nivel > 0);
 
                 line.setAttribute("class", `connection-line ${isActive ? 'active' : 'inactive'}`);
@@ -297,6 +313,55 @@ function drawLines() {
 
                 svg.appendChild(line);
             });
+        }
+    });
+}
+
+// ==========================================
+// EVENTOS (Pestañas y Botones)
+// ==========================================
+function setupEventListeners() {
+    // Botones de sistema (Mérito y Reset)
+    document.getElementById('add-merit-btn').addEventListener('click', () => {
+        gameState.merit += 10;
+        saveGameState();
+        updateMeritDisplay();
+    });
+
+    document.getElementById('reset-btn').addEventListener('click', () => {
+        if(confirm("¿Estás seguro de que deseas reiniciar todo el progreso?")) {
+            localStorage.removeItem('skillTreeState');
+            location.reload();
+        }
+    });
+
+    // Navegación por pestañas
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Quitar clase active de todos
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+
+            // Añadir clase active al clickeado y su target
+            btn.classList.add('active');
+            const targetId = btn.getAttribute('data-target');
+            document.getElementById(targetId).classList.add('active');
+
+            // Si pasamos a la pestaña de rasgos, redibujamos las líneas porque el layout cambió
+            if (targetId === 'tab-rasgos') {
+                setTimeout(drawLines, 50);
+            }
+        });
+    });
+
+    // Resize para redibujar las líneas
+    window.addEventListener('resize', () => {
+        // Solo recalcular si la pestaña de rasgos está activa
+        if (document.getElementById('tab-rasgos').classList.contains('active')) {
+            drawLines();
         }
     });
 }

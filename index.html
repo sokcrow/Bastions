@@ -17,12 +17,30 @@
         </div>
     </header>
 
-    <main class="tree-container">
-        <!-- SVG para las líneas conectoras -->
-        <svg id="connections-svg"></svg>
+    <!-- Sistema de navegación por pestañas -->
+    <nav class="tabs-nav">
+        <button class="tab-btn active" data-target="tab-rasgos">Rasgos</button>
+        <button class="tab-btn" data-target="tab-estados">Estados</button>
+    </nav>
 
-        <!-- Contenedor donde se generarán los nodos del árbol dinámicamente -->
-        <div id="nodes-container"></div>
+    <main class="main-content">
+        <!-- Pestaña: Rasgos (Árbol de Habilidades) -->
+        <section id="tab-rasgos" class="tab-content active">
+            <div class="tree-container">
+                <!-- SVG para las líneas conectoras -->
+                <svg id="connections-svg"></svg>
+
+                <!-- Contenedor donde se generarán los nodos del árbol dinámicamente -->
+                <div id="nodes-container"></div>
+            </div>
+        </section>
+
+        <!-- Pestaña: Estados -->
+        <section id="tab-estados" class="tab-content">
+            <div class="states-container" id="states-container">
+                <!-- Los estados se inyectarán aquí -->
+            </div>
+        </section>
     </main>
 
     <script src="script.js"></script>
