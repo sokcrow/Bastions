@@ -191,3 +191,130 @@ body:not(.edit-mode) .node.maxed { cursor: default; }
 .form-group input, .form-group textarea, .form-group select { background-color: var(--bg-color); border: 1px solid var(--border-color); color: white; padding: 10px; border-radius: 4px; font-family: inherit; }
 .form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: var(--accent-color); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px; }
+/* =========================================
+   NUEVO: Controles Móviles (Ocultos en Desktop)
+   ========================================= */
+.btn-menu-mobile {
+    display: none;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    margin-right: 15px;
+}
+
+.btn-close-mobile {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--danger-color);
+    font-size: 2rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 15;
+}
+
+.title-row {
+    display: flex;
+    align-items: center;
+}
+
+/* =========================================
+   MEDIA QUERIES (Móviles y Tablets)
+   ========================================= */
+@media screen and (max-width: 768px) {
+    /* Header ajustado */
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+        padding: 15px;
+    }
+
+    .header-controls {
+        width: 100%;
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .btn-menu-mobile {
+        display: block;
+    }
+
+    /* Sidebar Off-Canvas */
+    .sidebar {
+        position: fixed;
+        left: -100%;
+        top: 0;
+        bottom: 0;
+        width: 280px;
+        transition: left 0.3s ease;
+        z-index: 20;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+    }
+
+    .sidebar.open {
+        left: 0;
+    }
+
+    .btn-close-mobile {
+        display: block;
+    }
+
+    .sidebar-overlay.active {
+        display: block;
+    }
+
+    /* Pestañas (Scroll Horizontal) */
+    .tabs-nav {
+        overflow-x: auto;
+        white-space: nowrap;
+        padding: 0 10px;
+    }
+
+    .tab-btn {
+        padding: 12px 20px;
+        font-size: 0.9rem;
+    }
+
+    /* Formularios Modales apilados */
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    /* Contenedores (reduciendo espacio) */
+    .tree-container {
+        padding: 20px 10px;
+    }
+
+    #nodes-container {
+        gap: 50px;
+    }
+
+    .tier {
+        gap: 20px;
+    }
+
+    .node {
+        width: 130px;
+        padding: 10px;
+    }
+
+    .node-name {
+        font-size: 1rem;
+    }
+
+    .states-container, .attributes-grid {
+        padding: 20px;
+        gap: 15px;
+    }
+}

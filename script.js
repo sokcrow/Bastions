@@ -796,3 +796,36 @@ function setupEventListeners() {
 
 // Arrancar
 document.addEventListener('DOMContentLoaded', init);
+
+// Lógica para Menú Móvil
+document.addEventListener('DOMContentLoaded', () => {
+    const btnOpen = document.getElementById('btn-open-sidebar');
+    const btnClose = document.getElementById('btn-close-sidebar');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    if (btnOpen && btnClose && sidebar && overlay) {
+        function openSidebar() {
+            sidebar.classList.add('open');
+            overlay.classList.add('active');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('active');
+        }
+
+        btnOpen.addEventListener('click', openSidebar);
+        btnClose.addEventListener('click', closeSidebar);
+        overlay.addEventListener('click', closeSidebar);
+
+        // Modificar selectPlayer global para que cierre el sidebar en móviles
+        const originalSelectPlayer = selectPlayer;
+        window.selectPlayer = function(id) {
+            originalSelectPlayer(id);
+            if (window.innerWidth <= 768) {
+                closeSidebar();
+            }
+        };
+    }
+});

@@ -8,11 +8,16 @@
 </head>
 <body>
     <div class="app-layout">
+
+        <!-- Overlay para móviles -->
+        <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
         <!-- Barra Lateral -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <h2>Jugadores</h2>
                 <button id="btn-add-player" class="btn btn-small">+ Añadir</button>
+                <button id="btn-close-sidebar" class="btn-close-mobile">&times;</button>
             </div>
             <ul id="players-list" class="players-list">
                 <!-- Lista de jugadores generada dinámicamente -->
@@ -24,7 +29,10 @@
             <!-- Header -->
             <header class="header">
                 <div class="player-info" id="player-info-container">
-                    <h2 id="current-player-name">Cargando...</h2>
+                    <div class="title-row">
+                        <button id="btn-open-sidebar" class="btn-menu-mobile">☰</button>
+                        <h2 id="current-player-name">Cargando...</h2>
+                    </div>
                     <div class="currency-display" id="currency-container">
                         <span id="currency-name">Moneda</span>: <span id="currency-count">0</span>
                         <button id="btn-add-currency" class="btn btn-small btn-icon" title="Añadir Moneda">+10</button>
