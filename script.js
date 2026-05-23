@@ -367,18 +367,17 @@ window.selectPlayer = function(id) {
     const contentContainer = document.getElementById('content-container');
     if(contentContainer) contentContainer.style.display = 'block';
 
-    const characterNameEl = document.getElementById('character-name');
-    const meritDisplayEl = document.getElementById('merit-display');
-    const currencyNameEl = document.getElementById('currency-name-display');
+    const characterNameEl = document.getElementById('current-player-name');
+    const currencyNameEl = document.getElementById('currency-name');
 
     if (characterNameEl) characterNameEl.textContent = currentPlayer.name;
-    if (meritDisplayEl) meritDisplayEl.textContent = currentPlayer.merit;
     if (currencyNameEl) currencyNameEl.textContent = currentPlayer.currencyName;
 
-    if (typeof updateHpUI === 'function') updateHpUI();
+    if (typeof updateCurrencyDisplay === 'function') updateCurrencyDisplay();
+    if (typeof renderHp === 'function') renderHp();
     if (typeof renderAttributes === 'function') renderAttributes();
     if (typeof renderTree === 'function') renderTree();
-    if (typeof renderActiveStates === 'function') renderActiveStates();
+    if (typeof renderStates === 'function') renderStates();
 
     if (typeof updateEditModeUI === 'function') {
         updateEditModeUI();
