@@ -464,6 +464,7 @@ window.selectPlayer = function(id) {
             }
         };
     }
+};
 }
 
 window.deleteGlobalState = function(id) {
@@ -1429,4 +1430,3 @@ window.openAssignModal = function(globalStateId) {
 };
 document.addEventListener('DOMContentLoaded', init);
 
-}
