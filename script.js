@@ -1428,3 +1428,6 @@ window.openAssignModal = function(globalStateId) {
     }
     openModal('modal-assign-state');
 };
+document.addEventListener('DOMContentLoaded', init);
+
+}
