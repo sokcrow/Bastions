@@ -110,8 +110,8 @@ function handleCanvasInteraction(e) {
                 cell.roomId = null;
             }
         } else if (currentBuildMode === 'door') {
-            // Door can be placed anywhere except over another door
-            if (cell.type !== TYPE_DOOR) {
+            // Door can be placed anywhere except over another door or corridor
+            if (cell.type !== TYPE_DOOR && cell.type !== TYPE_CORRIDOR) {
                 cell.type = TYPE_DOOR;
                 cell.roomId = null; // overriding room wall if placed on edge
             }
